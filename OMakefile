@@ -1,5 +1,9 @@
+CLEAN = rm -f *.annot *.cmi *.cmo *.cmxa *.cmx *.o *.a *.opt
+
 DBUS_FILES[] =
 	dbus_type
+	dbus_value
+	dbus_type_parse
 
 LIB = dbus
 DBUS_LIB = $(OCamlLibrary $(LIB), $(DBUS_FILES))
