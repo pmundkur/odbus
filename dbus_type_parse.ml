@@ -1,3 +1,6 @@
+module T = Dbus_type
+module V = Dbus_value
+
 type inv_reason =
   | Inv_non_boolean
   | Inv_embedded_nul
@@ -6,10 +9,11 @@ type inv_reason =
   | Inv_consecutive_slashes
   | Inv_non_slash_prefix
   | Inv_slash_terminated
+  | Inv_signature
 
 type error =
-  | Insufficient_data of Dbus_type.base
-  | Invalid_value of Dbus_type.base * inv_reason
+  | Insufficient_data of T.base
+  | Invalid_value of T.base * inv_reason
 
 exception Parse_error of error
 let raise_error e =
@@ -42,9 +46,14 @@ let check_and_align_context ctxt alignment size dtype =
       raise_error (Insufficient_data dtype);
     advance ctxt padding
 
+let take_byte dtype ctxt =
+  let ctxt = check_and_align_context ctxt 1 1 dtype in
+  let b = ctxt.buffer.[ctxt.offset] in
+    b, advance ctxt 1
+
 let parse_byte ctxt =
-  if ctxt.length < 1 then raise_error (Insufficient_data Dbus_type.B_byte)
-  else ctxt.buffer.[ctxt.offset], advance ctxt 1
+  let b, ctxt = take_byte T.B_byte ctxt in
+    V.V_byte b, ctxt
 
 let to_uint16 endian b0 b1 =
   match endian with
@@ -77,19 +86,27 @@ let to_uint64 endian u0 u1 =
       | Little_endian -> I.add u0 (I.shift_left u1 32)
       | Big_endian -> I.add u1 (I.shift_left u0 32)
 
-let parse_i16 sign ctxt =
+let take_i16 sign ctxt =
   let to_fn, dtype =
-    if sign then to_int16, Dbus_type.B_int16
-    else to_uint16, Dbus_type.B_uint16 in
+    if sign then to_int16, T.B_int16
+    else to_uint16, T.B_uint16 in
   let ctxt = check_and_align_context ctxt 2 2 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
     to_fn ctxt.endian b0 b1, advance ctxt 2
 
-let parse_int16 = parse_i16 true
-let parse_uint16 = parse_i16 false
+let take_int16 = take_i16 true
+let take_uint16 = take_i16 false
 
-let parse_uint32 ?(dtype=Dbus_type.B_uint32) ctxt =
+let parse_int16 ctxt =
+  let i, ctxt = take_int16 ctxt in
+    V.V_int16 i, ctxt
+
+let parse_uint16 ctxt =
+  let i, ctxt = take_uint16 ctxt in
+    V.V_uint16 i, ctxt
+
+let take_uint32 dtype ctxt =
   let ctxt = check_and_align_context ctxt 4 4 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
@@ -99,24 +116,31 @@ let parse_uint32 ?(dtype=Dbus_type.B_uint32) ctxt =
   let q1 = to_uint16 ctxt.endian b2 b3 in
     to_uint32 ctxt.endian q0 q1, advance ctxt 4
 
+let parse_uint32 ctxt =
+  let i, ctxt = take_uint32 T.B_uint32 ctxt in
+    V.V_uint32 i, ctxt
+
 let parse_int32 ctxt =
-  let ctxt = check_and_align_context ctxt 4 4 Dbus_type.B_int32 in
+  let ctxt = check_and_align_context ctxt 4 4 T.B_int32 in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
   let b2 = Char.code ctxt.buffer.[ctxt.offset + 2] in
   let b3 = Char.code ctxt.buffer.[ctxt.offset + 3] in
   let q0 = to_uint16 ctxt.endian b0 b1 in
   let q1 = to_uint16 ctxt.endian b2 b3 in
-    to_int32 ctxt.endian q0 q1, advance ctxt 4
+    V.V_int32 (to_int32 ctxt.endian q0 q1), advance ctxt 4
 
 let parse_boolean ctxt =
-  let i, ctxt = parse_uint32 ~dtype:Dbus_type.B_boolean ctxt in
+  let i, ctxt = take_uint32 T.B_boolean ctxt in
+  let b =
     if i <> 0L && i <> 1L
-    then raise_error (Invalid_value (Dbus_type.B_boolean, Inv_non_boolean))
-    else (if i = 0L then false else true), ctxt
+    then raise_error (Invalid_value (T.B_boolean, Inv_non_boolean))
+    else (if i = 0L then false else true)
+  in
+    V.V_boolean b, ctxt
 
 (* TODO: check int64 (and other!) sanity! *)
-let parse_uint64 ?(dtype=Dbus_type.B_uint64) ctxt =
+let take_uint64 dtype ctxt =
   let ctxt = check_and_align_context ctxt 8 8 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
@@ -132,12 +156,23 @@ let parse_uint64 ?(dtype=Dbus_type.B_uint64) ctxt =
   let q3 = to_uint16 ctxt.endian b6 b7 in
   let u0 = to_uint32 ctxt.endian q0 q1 in
   let u1 = to_uint32 ctxt.endian q2 q3 in
-    to_uint64 ctxt.endian u0 u1
+    to_uint64 ctxt.endian u0 u1, advance ctxt 8
 
-let parse_int64 = parse_uint64
+let parse_uint64 ctxt =
+  let u, ctxt = take_uint64 T.B_uint64 ctxt in
+    V.V_uint64 u, ctxt
 
-let parse_string ?(dtype=Dbus_type.B_string) ctxt =
-  let len, ctxt = parse_uint32 ~dtype ctxt in
+let parse_int64 ctxt =
+  let i, ctxt = take_uint64 T.B_int64 ctxt in
+    V.V_int64 i, ctxt
+
+(* Valid String:
+   A UINT32 indicating the string's length in bytes excluding its
+   terminating nul, followed by non-nul string data of the given
+   length, followed by a terminating nul byte.
+*)
+let take_string dtype ctxt =
+  let len, ctxt = take_uint32 dtype ctxt in
   let len = Int64.to_int len in
   let ctxt = check_and_align_context ctxt 1 (len + 1) dtype in
   let s = String.sub ctxt.buffer ctxt.offset len in
@@ -149,9 +184,9 @@ let parse_string ?(dtype=Dbus_type.B_string) ctxt =
       raise_error (Invalid_value (dtype, Inv_not_nul_terminated));
     s, (advance ctxt (len + 1))
 
-let is_valid_objectpath_char = function
-  | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '/' -> true
-  | _ -> false
+let parse_string ctxt =
+  let s, ctxt = take_string T.B_string ctxt in
+    V.V_string s, ctxt
 
 (* Valid Object Paths:
    . The path must begin with an ASCII '/' (integer 47) character,
@@ -163,9 +198,13 @@ let is_valid_objectpath_char = function
    . A trailing '/' character is not allowed unless the path is
      the root path (a single '/' character).
 *)
+let is_valid_objectpath_char = function
+  | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '/' -> true
+  | _ -> false
+
 let parse_object_path ctxt =
-  let dtype = Dbus_type.B_object_path in
-  let s, ctxt = parse_string ~dtype ctxt in
+  let dtype = T.B_object_path in
+  let s, ctxt = take_string dtype ctxt in
   let slen = String.length s in
   let prev_was_slash = ref false in
     for i = 0 to slen do
@@ -184,4 +223,34 @@ let parse_object_path ctxt =
       if slen > 1 && s.[slen - 1] = '/' then
         raise_error (Invalid_value (dtype, Inv_slash_terminated));
     end;
-    s, ctxt
+    V.V_object_path s, ctxt
+
+let parse_signature ctxt =
+  let dtype = T.B_signature in
+  let b, ctxt = take_byte dtype ctxt in
+  let slen = Char.code b in
+  let s = String.sub ctxt.buffer ctxt.offset slen in
+    try V.V_signature (T.signature_of_string s), advance ctxt slen
+    with T.Invalid_signature _ ->
+      raise_error (Invalid_value (dtype, Inv_signature))
+
+let parse_double ctxt =
+  let ctxt = check_and_align_context ctxt 8 8 T.B_double in
+    (* TODO: Some Oo.black magic. *)
+    V.V_double 0.0, advance ctxt 8
+
+let get_base_parser = function
+  | T.B_byte ->         parse_byte
+  | T.B_boolean ->      parse_boolean
+  | T.B_int16 ->        parse_int16
+  | T.B_uint16 ->       parse_uint16
+  | T.B_int32 ->        parse_int32
+  | T.B_uint32 ->       parse_uint32
+  | T.B_int64 ->        parse_int64
+  | T.B_uint64 ->       parse_uint64
+  | T.B_double ->       parse_double
+  | T.B_string ->       parse_string
+  | T.B_object_path ->  parse_object_path
+  | T.B_signature ->    parse_signature
+
+

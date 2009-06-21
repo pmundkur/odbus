@@ -1,5 +1,7 @@
 CLEAN = rm -f *.annot *.cmi *.cmo *.cmxa *.cmx *.o *.a *.opt
 
+OCAMLFLAGS += -dtypes
+
 DBUS_FILES[] =
 	dbus_type
 	dbus_value

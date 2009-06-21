@@ -10,7 +10,7 @@ type value =
   | V_double of float
   | V_string of string
   | V_object_path of string
-  | V_signature of string
+  | V_signature of Dbus_type.t list
   | V_array of value array
   | V_struct of value list
   | V_variant of string * value

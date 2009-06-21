@@ -18,19 +18,18 @@ type t =
   | T_struct of t list  (* 'r', '(' .. ')' *)
   | T_variant           (* 'v' *)
 
-type sig_error =
-  | Sig_incomplete
-  | Sig_invalid of string
-  | Sig_invalid_char of char
-
 let is_basic_type = function
   | T_base _ -> true
   | _        -> false
 
 let is_container_type t = not (is_basic_type t)
 
-exception Signature of sig_error
-let raise_sig_error se = raise (Signature se)
+type sig_error =
+  | Sig_incomplete
+  | Sig_invalid of string
+  | Sig_invalid_char of char
+exception Invalid_signature of sig_error
+let raise_sig_error se = raise (Invalid_signature se)
 
 let is_valid_dict_entry = function
   | T_struct tlist -> (List.length tlist = 2) && (is_basic_type (List.hd tlist))
@@ -102,7 +101,7 @@ let string_to_char_list s =
   in
     accum_list [] ((String.length s) - 1)
 
-let parse_signature s =
+let signature_of_string s =
   let rec helper acc = function
     | [] -> acc
     | clist ->
