@@ -13,4 +13,9 @@ type value =
   | V_signature of Dbus_type.t list
   | V_array of value array
   | V_struct of value list
-  | V_variant of string * value
+  | V_variant of Dbus_type.t list * value list
+
+let dtypes_of_signature v =
+  match v with
+    | V_signature tl -> tl
+    | _ -> assert false

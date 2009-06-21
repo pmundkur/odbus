@@ -236,7 +236,7 @@ let parse_signature ctxt =
 
 let parse_double ctxt =
   let ctxt = check_and_align_context ctxt 8 8 T.B_double in
-    (* TODO: Some Oo.black magic. *)
+    (* TODO: Some Oo.black magic, or better yet, do it in C. *)
     V.V_double 0.0, advance ctxt 8
 
 let get_base_parser = function
@@ -253,4 +253,26 @@ let get_base_parser = function
   | T.B_object_path ->  parse_object_path
   | T.B_signature ->    parse_signature
 
+let rec parse_complete_type dtype ctxt =
+  match dtype with
+    | T.T_base b ->
+        (get_base_parser b) ctxt
+    | T.T_array t ->
+        (* TODO *)
+        failwith "not implemented"
+    | T.T_struct tl ->
+        let vl, ctxt = parse_type_list tl ctxt in
+          V.V_array (Array.of_list (List.rev vl)), ctxt
+    | T.T_variant ->
+        let s, ctxt = parse_signature ctxt in
+        let tl = V.dtypes_of_signature s in
+        let vl, ctxt = parse_type_list tl ctxt in
+          V.V_variant (tl, vl), ctxt
 
+and parse_type_list dtypes ctxt =
+  let vl, ctxt =
+    List.fold_left (fun (vl, ctxt) t ->
+                      let v, ctxt = parse_complete_type t ctxt in
+                        (v :: vl), ctxt
+                   ) ([], ctxt) dtypes in
+    List.rev vl, ctxt
