@@ -1,16 +1,16 @@
 type base =
-  | Tbase_byte          (* 'y' *)
-  | Tbase_boolean       (* 'b' *)
-  | Tbase_int16         (* 'n' *)
-  | Tbase_uint16        (* 'q' *)
-  | Tbase_int32         (* 'i' *)
-  | Tbase_uint32        (* 'u' *)
-  | Tbase_int64         (* 'x' *)
-  | Tbase_uint64        (* 't' *)
-  | Tbase_double        (* 'd' *)
-  | Tbase_string        (* 's' *)
-  | Tbase_object_path   (* 'o' *)
-  | Tbase_signature     (* 'g' *)
+  | B_byte          (* 'y' *)
+  | B_boolean       (* 'b' *)
+  | B_int16         (* 'n' *)
+  | B_uint16        (* 'q' *)
+  | B_int32         (* 'i' *)
+  | B_uint32        (* 'u' *)
+  | B_int64         (* 'x' *)
+  | B_uint64        (* 't' *)
+  | B_double        (* 'd' *)
+  | B_string        (* 's' *)
+  | B_object_path   (* 'o' *)
+  | B_signature     (* 'g' *)
 
 type t =
   | T_base of base
@@ -41,29 +41,29 @@ let rec get_complete_type clist in_array =
     | [] ->
         raise_sig_error Sig_incomplete
     | 'y' :: rem ->
-        (T_base Tbase_byte), rem
+        (T_base B_byte), rem
     | 'b' :: rem ->
-        (T_base Tbase_boolean), rem
+        (T_base B_boolean), rem
     | 'n' :: rem ->
-        (T_base Tbase_int16), rem
+        (T_base B_int16), rem
     | 'q' :: rem ->
-        (T_base Tbase_uint16), rem
+        (T_base B_uint16), rem
     | 'i' :: rem ->
-        (T_base Tbase_int32), rem
+        (T_base B_int32), rem
     | 'u' :: rem ->
-        (T_base Tbase_uint32), rem
+        (T_base B_uint32), rem
     | 'x' :: rem ->
-        (T_base Tbase_int64), rem
+        (T_base B_int64), rem
     | 't' :: rem ->
-        (T_base Tbase_uint64), rem
+        (T_base B_uint64), rem
     | 'd' :: rem ->
-        (T_base Tbase_double), rem
+        (T_base B_double), rem
     | 's' :: rem ->
-        (T_base Tbase_string), rem
+        (T_base B_string), rem
     | 'o' :: rem ->
-        (T_base Tbase_object_path), rem
+        (T_base B_object_path), rem
     | 'g' :: rem ->
-        (T_base Tbase_signature), rem
+        (T_base B_signature), rem
     | 'v' :: rem ->
 	T_variant, rem
     | 'a' :: rem ->

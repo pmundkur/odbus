@@ -34,7 +34,7 @@ let check_and_align_context ctxt alignment size dtype =
     advance ctxt padding
 
 let parse_byte ctxt =
-  if ctxt.length < 1 then raise_error (Insufficient_data Dbus_type.Tbase_byte)
+  if ctxt.length < 1 then raise_error (Insufficient_data Dbus_type.B_byte)
   else ctxt.buffer.[ctxt.offset], advance ctxt 1
 
 let to_uint16 endian b0 b1 =
@@ -70,8 +70,8 @@ let to_uint64 endian u0 u1 =
 
 let parse_i16 sign ctxt =
   let to_fn, dtype =
-    if sign then to_int16, Dbus_type.Tbase_int16
-    else to_uint16, Dbus_type.Tbase_uint16 in
+    if sign then to_int16, Dbus_type.B_int16
+    else to_uint16, Dbus_type.B_uint16 in
   let ctxt = check_and_align_context ctxt 2 2 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
@@ -80,7 +80,7 @@ let parse_i16 sign ctxt =
 let parse_int16 = parse_i16 true
 let parse_uint16 = parse_i16 false
 
-let parse_uint32 ?(dtype=Dbus_type.Tbase_uint32) ctxt =
+let parse_uint32 ?(dtype=Dbus_type.B_uint32) ctxt =
   let ctxt = check_and_align_context ctxt 4 4 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
@@ -91,7 +91,7 @@ let parse_uint32 ?(dtype=Dbus_type.Tbase_uint32) ctxt =
     to_uint32 ctxt.endian q0 q1, advance ctxt 4
 
 let parse_int32 ctxt =
-  let ctxt = check_and_align_context ctxt 4 4 Dbus_type.Tbase_int32 in
+  let ctxt = check_and_align_context ctxt 4 4 Dbus_type.B_int32 in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
   let b2 = Char.code ctxt.buffer.[ctxt.offset + 2] in
@@ -101,12 +101,12 @@ let parse_int32 ctxt =
     to_int32 ctxt.endian q0 q1, advance ctxt 4
 
 let parse_boolean ctxt =
-  let i, ctxt = parse_uint32 ~dtype:Dbus_type.Tbase_boolean ctxt in
-    if i <> 0L && i <> 1L then raise_error (Invalid_value Dbus_type.Tbase_boolean)
+  let i, ctxt = parse_uint32 ~dtype:Dbus_type.B_boolean ctxt in
+    if i <> 0L && i <> 1L then raise_error (Invalid_value Dbus_type.B_boolean)
     else (if i = 0L then false else true), ctxt
 
 (* TODO: check int64 (and other!) sanity! *)
-let parse_uint64 ?(dtype=Dbus_type.Tbase_uint64) ctxt =
+let parse_uint64 ?(dtype=Dbus_type.B_uint64) ctxt =
   let ctxt = check_and_align_context ctxt 8 8 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
@@ -126,7 +126,7 @@ let parse_uint64 ?(dtype=Dbus_type.Tbase_uint64) ctxt =
 
 let parse_int64 = parse_uint64
 
-let parse_string ?(dtype=Dbus_type.Tbase_string) ctxt =
+let parse_string ?(dtype=Dbus_type.B_string) ctxt =
   let len, ctxt = parse_uint32 ~dtype ctxt in
   let len = Int64.to_int len in
   let ctxt = check_and_align_context ctxt 1 (len + 1) dtype in
@@ -140,7 +140,7 @@ let parse_string ?(dtype=Dbus_type.Tbase_string) ctxt =
     s, (advance ctxt (len + 1))
 
 let parse_object_path ctxt =
-  let s, ctxt = parse_string ~dtype:Dbus_type.Tbase_object_path ctxt in
+  let s, ctxt = parse_string ~dtype:Dbus_type.B_object_path ctxt in
     (* TODO: validate the path:
        . The path must begin with an ASCII '/' (integer 47) character,
          and must consist of elements separated by slash characters.
@@ -152,4 +152,3 @@ let parse_object_path ctxt =
          the root path (a single '/' character).
     *)
     s, ctxt
-
