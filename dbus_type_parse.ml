@@ -1,6 +1,15 @@
+type inv_reason =
+  | Inv_non_boolean
+  | Inv_embedded_nul
+  | Inv_not_nul_terminated
+  | Inv_objectpath_char
+  | Inv_consecutive_slashes
+  | Inv_non_slash_prefix
+  | Inv_slash_terminated
+
 type error =
   | Insufficient_data of Dbus_type.base
-  | Invalid_value of Dbus_type.base
+  | Invalid_value of Dbus_type.base * inv_reason
 
 exception Parse_error of error
 let raise_error e =
@@ -102,7 +111,8 @@ let parse_int32 ctxt =
 
 let parse_boolean ctxt =
   let i, ctxt = parse_uint32 ~dtype:Dbus_type.B_boolean ctxt in
-    if i <> 0L && i <> 1L then raise_error (Invalid_value Dbus_type.B_boolean)
+    if i <> 0L && i <> 1L
+    then raise_error (Invalid_value (Dbus_type.B_boolean, Inv_non_boolean))
     else (if i = 0L then false else true), ctxt
 
 (* TODO: check int64 (and other!) sanity! *)
@@ -133,22 +143,45 @@ let parse_string ?(dtype=Dbus_type.B_string) ctxt =
   let s = String.sub ctxt.buffer ctxt.offset len in
     for i = 0 to len - 1 do
       if s.[i] = '\x00' then
-        raise_error (Invalid_value dtype);
+        raise_error (Invalid_value (dtype, Inv_embedded_nul));
     done;
     if ctxt.buffer.[ctxt.offset + len] <> '\x00' then
-      raise_error (Invalid_value dtype);
+      raise_error (Invalid_value (dtype, Inv_not_nul_terminated));
     s, (advance ctxt (len + 1))
 
+let is_valid_objectpath_char = function
+  | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '/' -> true
+  | _ -> false
+
+(* Valid Object Paths:
+   . The path must begin with an ASCII '/' (integer 47) character,
+     and must consist of elements separated by slash characters.
+   . Each element must only contain the ASCII characters
+     "[A-Z][a-z][0-9]_"
+   . No element may be the empty string.
+   . Multiple '/' characters cannot occur in sequence.
+   . A trailing '/' character is not allowed unless the path is
+     the root path (a single '/' character).
+*)
 let parse_object_path ctxt =
-  let s, ctxt = parse_string ~dtype:Dbus_type.B_object_path ctxt in
-    (* TODO: validate the path:
-       . The path must begin with an ASCII '/' (integer 47) character,
-         and must consist of elements separated by slash characters.
-       . Each element must only contain the ASCII characters
-         "[A-Z][a-z][0-9]_"
-       . No element may be the empty string.
-       . Multiple '/' characters cannot occur in sequence.
-       . A trailing '/' character is not allowed unless the path is
-         the root path (a single '/' character).
-    *)
+  let dtype = Dbus_type.B_object_path in
+  let s, ctxt = parse_string ~dtype ctxt in
+  let slen = String.length s in
+  let prev_was_slash = ref false in
+    for i = 0 to slen do
+      if not (is_valid_objectpath_char s.[i]) then
+        raise_error (Invalid_value (dtype, Inv_objectpath_char));
+      if not !prev_was_slash && s.[i] = '/' then
+        prev_was_slash := true
+      else if !prev_was_slash then
+        if s.[i] = '/'
+        then raise_error (Invalid_value (dtype, Inv_consecutive_slashes))
+        else prev_was_slash := false;
+    done;
+    if slen > 0 then begin
+      if s.[0] <> '/' then
+        raise_error (Invalid_value (dtype, Inv_non_slash_prefix));
+      if slen > 1 && s.[slen - 1] = '/' then
+        raise_error (Invalid_value (dtype, Inv_slash_terminated));
+    end;
     s, ctxt
