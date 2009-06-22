@@ -41,6 +41,9 @@ let alignment_of = function
   | T_array _ ->            4
   | T_struct _ ->           8
 
+let get_padding current_offset alignment =
+  alignment - (current_offset mod alignment)
+
 
 type sig_error =
   | Sig_incomplete

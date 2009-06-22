@@ -38,11 +38,8 @@ let advance ctxt nbytes =
       offset = ctxt.offset + nbytes;
       length = ctxt.length - nbytes }
 
-let get_padding ctxt alignment =
-  alignment - (ctxt.offset mod alignment)
-
 let check_and_align_context ctxt alignment size dtype =
-  let padding = get_padding ctxt alignment in
+  let padding = T.get_padding ctxt.offset alignment in
     if ctxt.length < size + padding then
       raise_error (Insufficient_data dtype);
     advance ctxt padding
