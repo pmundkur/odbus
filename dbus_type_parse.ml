@@ -9,7 +9,8 @@ type inv_reason =
   | Inv_consecutive_slashes
   | Inv_non_slash_prefix
   | Inv_slash_terminated
-  | Inv_signature
+  | Inv_signature of T.sig_error
+  | Inv_array_length
 
 type error =
   | Insufficient_data of T.t
@@ -239,8 +240,7 @@ let parse_signature ctxt =
   let slen = Char.code b in
   let s = String.sub ctxt.buffer ctxt.offset slen in
     try V.V_signature (T.signature_of_string s), advance ctxt slen
-    with T.Invalid_signature _ ->
-      raise_error (Invalid_value (dtype, Inv_signature))
+    with T.Invalid_signature se -> raise_error (Invalid_value (dtype, Inv_signature se))
 
 let parse_double ctxt =
   let dtype = T.T_base T.B_double in
@@ -273,14 +273,14 @@ let rec parse_complete_type dtype ctxt =
         let align = T.alignment_of t in
         let ctxt = check_and_align_context ctxt align len dtype in
         let end_offset = ctxt.offset + len in
-        let alist = ref [] in
-        let ctxt_ref = ref ctxt in
-          while (!ctxt_ref).offset < end_offset do
-            let e, ctxt = parse_complete_type t !ctxt_ref in
-              alist := e :: !alist;
-              ctxt_ref := ctxt
-          done;
-          V.V_array (Array.of_list (List.rev !alist)), !ctxt_ref
+        let rec iter acc ctxt =
+          if ctxt.offset < end_offset then
+            let e, ctxt = parse_complete_type t ctxt in
+              iter (e :: acc) ctxt
+          else acc, ctxt in
+        let alist, ctxt = iter [] ctxt in
+          if ctxt.offset > end_offset then raise_error (Invalid_value (dtype, Inv_array_length))
+          else V.V_array (Array.of_list (List.rev alist)), ctxt
     | T.T_struct tl ->
         let align = T.alignment_of dtype in
         (* the below call only performs alignment; the length check
