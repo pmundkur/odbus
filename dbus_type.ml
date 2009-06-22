@@ -24,6 +24,23 @@ let is_basic_type = function
 
 let is_container_type t = not (is_basic_type t)
 
+let alignment_of = function
+  | T_base B_byte ->        1
+  | T_base B_boolean ->     4
+  | T_base B_int16 ->       2
+  | T_base B_uint16 ->      2
+  | T_base B_int32 ->       4
+  | T_base B_uint32 ->      4
+  | T_base B_int64 ->       8
+  | T_base B_uint64 ->      8
+  | T_base B_double ->      8
+  | T_base B_string ->      4
+  | T_base B_object_path -> 4
+  | T_base B_signature ->   1
+  | T_array _ ->            4
+  | T_struct _ ->           8
+  | T_variant ->            1
+
 type sig_error =
   | Sig_incomplete
   | Sig_invalid of string

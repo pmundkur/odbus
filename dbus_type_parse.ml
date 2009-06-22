@@ -12,8 +12,8 @@ type inv_reason =
   | Inv_signature
 
 type error =
-  | Insufficient_data of T.base
-  | Invalid_value of T.base * inv_reason
+  | Insufficient_data of T.t
+  | Invalid_value of T.t * inv_reason
 
 exception Parse_error of error
 let raise_error e =
@@ -47,12 +47,13 @@ let check_and_align_context ctxt alignment size dtype =
     advance ctxt padding
 
 let take_byte dtype ctxt =
-  let ctxt = check_and_align_context ctxt 1 1 dtype in
+  let align = T.alignment_of (T.T_base T.B_byte) in
+  let ctxt = check_and_align_context ctxt align 1 dtype in
   let b = ctxt.buffer.[ctxt.offset] in
     b, advance ctxt 1
 
 let parse_byte ctxt =
-  let b, ctxt = take_byte T.B_byte ctxt in
+  let b, ctxt = take_byte (T.T_base T.B_byte) ctxt in
     V.V_byte b, ctxt
 
 let to_uint16 endian b0 b1 =
@@ -88,9 +89,10 @@ let to_uint64 endian u0 u1 =
 
 let take_i16 sign ctxt =
   let to_fn, dtype =
-    if sign then to_int16, T.B_int16
-    else to_uint16, T.B_uint16 in
-  let ctxt = check_and_align_context ctxt 2 2 dtype in
+    if sign then to_int16, (T.T_base T.B_int16)
+    else to_uint16, (T.T_base T.B_uint16) in
+  let align = T.alignment_of dtype in
+  let ctxt = check_and_align_context ctxt align 2 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
     to_fn ctxt.endian b0 b1, advance ctxt 2
@@ -107,7 +109,8 @@ let parse_uint16 ctxt =
     V.V_uint16 i, ctxt
 
 let take_uint32 dtype ctxt =
-  let ctxt = check_and_align_context ctxt 4 4 dtype in
+  let align = T.alignment_of (T.T_base T.B_int32) in
+  let ctxt = check_and_align_context ctxt align 4 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
   let b2 = Char.code ctxt.buffer.[ctxt.offset + 2] in
@@ -117,11 +120,13 @@ let take_uint32 dtype ctxt =
     to_uint32 ctxt.endian q0 q1, advance ctxt 4
 
 let parse_uint32 ctxt =
-  let i, ctxt = take_uint32 T.B_uint32 ctxt in
+  let i, ctxt = take_uint32 (T.T_base T.B_uint32) ctxt in
     V.V_uint32 i, ctxt
 
 let parse_int32 ctxt =
-  let ctxt = check_and_align_context ctxt 4 4 T.B_int32 in
+  let dtype = T.T_base T.B_int32 in
+  let align = T.alignment_of dtype in
+  let ctxt = check_and_align_context ctxt align 4 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
   let b2 = Char.code ctxt.buffer.[ctxt.offset + 2] in
@@ -131,17 +136,19 @@ let parse_int32 ctxt =
     V.V_int32 (to_int32 ctxt.endian q0 q1), advance ctxt 4
 
 let parse_boolean ctxt =
-  let i, ctxt = take_uint32 T.B_boolean ctxt in
+  let dtype = T.T_base T.B_boolean in
+  let i, ctxt = take_uint32 dtype ctxt in
   let b =
     if i <> 0L && i <> 1L
-    then raise_error (Invalid_value (T.B_boolean, Inv_non_boolean))
+    then raise_error (Invalid_value (dtype, Inv_non_boolean))
     else (if i = 0L then false else true)
   in
     V.V_boolean b, ctxt
 
 (* TODO: check int64 (and other!) sanity! *)
 let take_uint64 dtype ctxt =
-  let ctxt = check_and_align_context ctxt 8 8 dtype in
+  let align = T.alignment_of (T.T_base T.B_int64) in
+  let ctxt = check_and_align_context ctxt align 8 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
   let b2 = Char.code ctxt.buffer.[ctxt.offset + 2] in
@@ -159,11 +166,11 @@ let take_uint64 dtype ctxt =
     to_uint64 ctxt.endian u0 u1, advance ctxt 8
 
 let parse_uint64 ctxt =
-  let u, ctxt = take_uint64 T.B_uint64 ctxt in
+  let u, ctxt = take_uint64 (T.T_base T.B_uint64) ctxt in
     V.V_uint64 u, ctxt
 
 let parse_int64 ctxt =
-  let i, ctxt = take_uint64 T.B_int64 ctxt in
+  let i, ctxt = take_uint64 (T.T_base T.B_int64) ctxt in
     V.V_int64 i, ctxt
 
 (* Valid String:
@@ -174,6 +181,7 @@ let parse_int64 ctxt =
 let take_string dtype ctxt =
   let len, ctxt = take_uint32 dtype ctxt in
   let len = Int64.to_int len in
+  (* the below call is only to check the length, since we're already aligned. *)
   let ctxt = check_and_align_context ctxt 1 (len + 1) dtype in
   let s = String.sub ctxt.buffer ctxt.offset len in
     for i = 0 to len - 1 do
@@ -185,7 +193,7 @@ let take_string dtype ctxt =
     s, (advance ctxt (len + 1))
 
 let parse_string ctxt =
-  let s, ctxt = take_string T.B_string ctxt in
+  let s, ctxt = take_string (T.T_base T.B_string) ctxt in
     V.V_string s, ctxt
 
 (* Valid Object Paths:
@@ -203,7 +211,7 @@ let is_valid_objectpath_char = function
   | _ -> false
 
 let parse_object_path ctxt =
-  let dtype = T.B_object_path in
+  let dtype = T.T_base T.B_object_path in
   let s, ctxt = take_string dtype ctxt in
   let slen = String.length s in
   let prev_was_slash = ref false in
@@ -226,7 +234,7 @@ let parse_object_path ctxt =
     V.V_object_path s, ctxt
 
 let parse_signature ctxt =
-  let dtype = T.B_signature in
+  let dtype = T.T_base T.B_signature in
   let b, ctxt = take_byte dtype ctxt in
   let slen = Char.code b in
   let s = String.sub ctxt.buffer ctxt.offset slen in
@@ -235,7 +243,9 @@ let parse_signature ctxt =
       raise_error (Invalid_value (dtype, Inv_signature))
 
 let parse_double ctxt =
-  let ctxt = check_and_align_context ctxt 8 8 T.B_double in
+  let dtype = T.T_base T.B_double in
+  let align = T.alignment_of dtype in
+  let ctxt = check_and_align_context ctxt align 8 dtype in
     (* TODO: Some Oo.black magic, or better yet, do it in C. *)
     V.V_double 0.0, advance ctxt 8
 
@@ -258,9 +268,24 @@ let rec parse_complete_type dtype ctxt =
     | T.T_base b ->
         (get_base_parser b) ctxt
     | T.T_array t ->
-        (* TODO *)
-        failwith "not implemented"
+        let len, ctxt = take_uint32 dtype ctxt in
+        let len = Int64.to_int len in
+        let align = T.alignment_of t in
+        let ctxt = check_and_align_context ctxt align len dtype in
+        let end_offset = ctxt.offset + len in
+        let alist = ref [] in
+        let ctxt_ref = ref ctxt in
+          while (!ctxt_ref).offset < end_offset do
+            let e, ctxt = parse_complete_type t !ctxt_ref in
+              alist := e :: !alist;
+              ctxt_ref := ctxt
+          done;
+          V.V_array (Array.of_list (List.rev !alist)), !ctxt_ref
     | T.T_struct tl ->
+        let align = T.alignment_of dtype in
+        (* the below call only performs alignment; the length check
+           is performed during the loop. *)
+        let ctxt = check_and_align_context ctxt align 0 dtype in
         let vl, ctxt = parse_type_list tl ctxt in
           V.V_array (Array.of_list (List.rev vl)), ctxt
     | T.T_variant ->
