@@ -14,9 +14,9 @@ type base =
 
 type t =
   | T_base of base
+  | T_variant           (* 'v' *)
   | T_array of t        (* 'a' *)
   | T_struct of t list  (* 'r', '(' .. ')' *)
-  | T_variant           (* 'v' *)
 
 let is_basic_type = function
   | T_base _ -> true
@@ -37,9 +37,10 @@ let alignment_of = function
   | T_base B_string ->      4
   | T_base B_object_path -> 4
   | T_base B_signature ->   1
+  | T_variant ->            1
   | T_array _ ->            4
   | T_struct _ ->           8
-  | T_variant ->            1
+
 
 type sig_error =
   | Sig_incomplete
@@ -48,9 +49,12 @@ type sig_error =
 exception Invalid_signature of sig_error
 let raise_sig_error se = raise (Invalid_signature se)
 
-let is_valid_dict_entry = function
-  | T_struct tlist -> (List.length tlist = 2) && (is_basic_type (List.hd tlist))
-  | _ -> false
+let as_dict_entry = function
+  | T_struct [ k; v ] when is_basic_type k -> Some (k, v)
+  | _ -> None
+
+let is_valid_dict_entry t =
+  as_dict_entry t <> None
 
 let rec get_complete_type clist in_array =
   match clist with
@@ -129,3 +133,28 @@ let signature_of_string s =
       raise_sig_error (Sig_invalid "signature exceeds 255 bytes")
     else
       List.rev (helper [] (string_to_char_list s))
+
+let signature_of_types tlist =
+  let rec sig_one = function
+    | T_base B_byte -> "y"
+    | T_base B_boolean -> "b"
+    | T_base B_int16 -> "n"
+    | T_base B_uint16 -> "q"
+    | T_base B_int32 -> "i"
+    | T_base B_uint32 -> "u"
+    | T_base B_int64 -> "x"
+    | T_base B_uint64 -> "t"
+    | T_base B_double -> "d"
+    | T_base B_string -> "s"
+    | T_base B_object_path -> "o"
+    | T_base B_signature -> "g"
+    | T_variant -> "v"
+    | T_array t ->
+        "a" ^ (match as_dict_entry t with
+                 | Some (k, v) -> "{" ^ sig_one k ^ sig_one v ^ "}"
+                 | _ -> sig_one t
+              )
+    | T_struct tl ->
+        "(" ^ (String.concat "" (List.map sig_one tl)) ^ ")"
+  in
+    String.concat "" (List.map sig_one tlist)

@@ -267,6 +267,11 @@ let rec parse_complete_type dtype ctxt =
   match dtype with
     | T.T_base b ->
         (get_base_parser b) ctxt
+    | T.T_variant ->
+        let s, ctxt = parse_signature ctxt in
+        let tl = V.dtypes_of_signature s in
+        let vl, ctxt = parse_type_list tl ctxt in
+          V.V_variant (tl, vl), ctxt
     | T.T_array t ->
         let len, ctxt = take_uint32 dtype ctxt in
         let len = Int64.to_int len in
@@ -288,11 +293,6 @@ let rec parse_complete_type dtype ctxt =
         let ctxt = check_and_align_context ctxt align 0 dtype in
         let vl, ctxt = parse_type_list tl ctxt in
           V.V_array (Array.of_list (List.rev vl)), ctxt
-    | T.T_variant ->
-        let s, ctxt = parse_signature ctxt in
-        let tl = V.dtypes_of_signature s in
-        let vl, ctxt = parse_type_list tl ctxt in
-          V.V_variant (tl, vl), ctxt
 
 and parse_type_list dtypes ctxt =
   let vl, ctxt =
