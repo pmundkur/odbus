@@ -44,6 +44,9 @@ let alignment_of = function
 let get_padding current_offset alignment =
   alignment - (current_offset mod alignment)
 
+type endian =
+  | Little_endian
+  | Big_endian
 
 type sig_error =
   | Sig_incomplete

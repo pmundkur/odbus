@@ -20,13 +20,9 @@ exception Parse_error of error
 let raise_error e =
   raise (Parse_error e)
 
-type endian =
-  | Little_endian
-  | Big_endian
-
 type context =
     {
-      endian : endian;
+      endian : T.endian;
       buffer : string;
       offset : int;
       length : int;
@@ -56,34 +52,34 @@ let parse_byte ctxt =
 
 let to_uint16 endian b0 b1 =
   match endian with
-    | Little_endian -> b0 + (b1 lsl 8)
-    | Big_endian -> b1 + (b0 lsl 8)
+    | T.Little_endian -> b0 + (b1 lsl 8)
+    | T.Big_endian -> b1 + (b0 lsl 8)
 
 let to_int16 endian b0 b1 =
   let i, sign = match endian with
-    | Little_endian -> b0 + (b1 lsl 8), b1 lsr 7
-    | Big_endian -> b1 + (b0 lsl 8), b0 lsr 7
+    | T.Little_endian -> b0 + (b1 lsl 8), b1 lsr 7
+    | T.Big_endian -> b1 + (b0 lsl 8), b0 lsr 7
   in if sign = 0 then i else (i land 0x7fff) - 0x8000
 
 let to_int32 endian q0 q1 =
   let module I = Int32 in
   let q0, q1 = I.of_int q0, I.of_int q1 in
     match endian with
-      | Little_endian -> I.add q0 (I.shift_left q1 16)
-      | Big_endian -> I.add q1 (I.shift_left q0 16)
+      | T.Little_endian -> I.add q0 (I.shift_left q1 16)
+      | T.Big_endian -> I.add q1 (I.shift_left q0 16)
 
 let to_uint32 endian q0 q1 =
   let module I = Int64 in
   let q0, q1 = I.of_int q0, I.of_int q1 in
     match endian with
-      | Little_endian -> I.add q0 (I.shift_left q1 16)
-      | Big_endian -> I.add q1 (I.shift_left q0 16)
+      | T.Little_endian -> I.add q0 (I.shift_left q1 16)
+      | T.Big_endian -> I.add q1 (I.shift_left q0 16)
 
 let to_uint64 endian u0 u1 =
   let module I = Int64 in
     match endian with
-      | Little_endian -> I.add u0 (I.shift_left u1 32)
-      | Big_endian -> I.add u1 (I.shift_left u0 32)
+      | T.Little_endian -> I.add u0 (I.shift_left u1 32)
+      | T.Big_endian -> I.add u1 (I.shift_left u0 32)
 
 let take_i16 sign ctxt =
   let to_fn, dtype =
