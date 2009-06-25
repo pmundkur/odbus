@@ -1,4 +1,4 @@
-type value =
+type t =
   | V_byte of char
   | V_boolean of bool
   | V_int16 of int
@@ -11,9 +11,9 @@ type value =
   | V_string of string
   | V_object_path of string
   | V_signature of Dbus_type.t list
-  | V_array of value array
-  | V_struct of value list
-  | V_variant of Dbus_type.t list * value list
+  | V_array of t array
+  | V_struct of t list
+  | V_variant of Dbus_type.t list * t list
 
 let dtypes_of_signature v =
   match v with

@@ -31,8 +31,8 @@ type method_call =
       method_call_destination : string option;
       method_call_sender : string option;
       method_call_signature : T.t list;
-      method_call_payload : V.value list;
-      method_call_headers : (header * V.value list) list;
+      method_call_payload : V.t list;
+      method_call_headers : (header * V.t list) list;
     }
 
 type method_return =
@@ -42,7 +42,7 @@ type method_return =
       method_return_destination : string option;
       method_return_sender : string option;
       method_return_signature : T.t list;
-      method_return_payload : V.value list;
+      method_return_payload : V.t list;
     }
 
 type signal =
@@ -54,7 +54,7 @@ type signal =
       signal_destination : string option;
       signal_sender : string option;
       signal_signature : T.t list;
-      signal_payload : V.value list;
+      signal_payload : V.t list;
     }
 
 type error =
@@ -65,7 +65,7 @@ type error =
       error_destination : string option;
       error_sender : string option;
       error_signature : T.t list;
-      error_payload : V.value list;
+      error_payload : V.t list;
     }
 
 type t =

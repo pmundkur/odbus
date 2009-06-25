@@ -28,6 +28,21 @@ type context =
       length : int;
     }
 
+let init_context endian buffer offset length =
+  { endian = endian;
+    buffer = buffer;
+    offset = offset;
+    length = length }
+
+let grow_context_by ctxt size =
+  let blen = String.length ctxt.buffer in
+  let new_buffer = String.create (blen + size) in
+    String.blit ctxt.buffer 0 new_buffer 0 blen;
+    { endian = ctxt.endian;
+      buffer = new_buffer;
+      offset = ctxt.offset;
+      length = ctxt.length + size }
+
 let advance ctxt nbytes =
   assert (ctxt.length >= nbytes);
   { ctxt with
@@ -40,14 +55,14 @@ let check_and_align_context ctxt alignment size dtype =
       raise_error (Insufficient_data dtype);
     advance ctxt padding
 
-let take_byte dtype ctxt =
+let take_byte ?(dtype=T.T_base T.B_byte) ctxt =
   let align = T.alignment_of (T.T_base T.B_byte) in
   let ctxt = check_and_align_context ctxt align 1 dtype in
   let b = ctxt.buffer.[ctxt.offset] in
     b, advance ctxt 1
 
 let parse_byte ctxt =
-  let b, ctxt = take_byte (T.T_base T.B_byte) ctxt in
+  let b, ctxt = take_byte ctxt in
     V.V_byte b, ctxt
 
 let to_uint16 endian b0 b1 =
@@ -102,7 +117,7 @@ let parse_uint16 ctxt =
   let i, ctxt = take_uint16 ctxt in
     V.V_uint16 i, ctxt
 
-let take_uint32 dtype ctxt =
+let take_uint32 ?(dtype=T.T_base T.B_uint32) ctxt =
   let align = T.alignment_of (T.T_base T.B_int32) in
   let ctxt = check_and_align_context ctxt align 4 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
@@ -114,7 +129,7 @@ let take_uint32 dtype ctxt =
     to_uint32 ctxt.endian q0 q1, advance ctxt 4
 
 let parse_uint32 ctxt =
-  let i, ctxt = take_uint32 (T.T_base T.B_uint32) ctxt in
+  let i, ctxt = take_uint32 ctxt in
     V.V_uint32 i, ctxt
 
 let parse_int32 ctxt =
@@ -131,7 +146,7 @@ let parse_int32 ctxt =
 
 let parse_boolean ctxt =
   let dtype = T.T_base T.B_boolean in
-  let i, ctxt = take_uint32 dtype ctxt in
+  let i, ctxt = take_uint32 ~dtype ctxt in
   let b =
     if i <> 0L && i <> 1L
     then raise_error (Invalid_value (dtype, Inv_non_boolean))
@@ -140,7 +155,7 @@ let parse_boolean ctxt =
     V.V_boolean b, ctxt
 
 (* TODO: check int64 (and other!) sanity! *)
-let take_uint64 dtype ctxt =
+let take_uint64 ?(dtype=T.T_base T.B_uint64) ctxt =
   let align = T.alignment_of (T.T_base T.B_int64) in
   let ctxt = check_and_align_context ctxt align 8 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
@@ -160,11 +175,11 @@ let take_uint64 dtype ctxt =
     to_uint64 ctxt.endian u0 u1, advance ctxt 8
 
 let parse_uint64 ctxt =
-  let u, ctxt = take_uint64 (T.T_base T.B_uint64) ctxt in
+  let u, ctxt = take_uint64 ctxt in
     V.V_uint64 u, ctxt
 
 let parse_int64 ctxt =
-  let i, ctxt = take_uint64 (T.T_base T.B_int64) ctxt in
+  let i, ctxt = take_uint64 ~dtype:(T.T_base T.B_int64) ctxt in
     V.V_int64 i, ctxt
 
 (* Valid String:
@@ -172,8 +187,8 @@ let parse_int64 ctxt =
    terminating nul, followed by non-nul string data of the given
    length, followed by a terminating nul byte.
 *)
-let take_string dtype ctxt =
-  let len, ctxt = take_uint32 dtype ctxt in
+let take_string ?(dtype=T.T_base T.B_string) ctxt =
+  let len, ctxt = take_uint32 ~dtype ctxt in
   let len = Int64.to_int len in
   (* the below call is only to check the length, since we're already aligned. *)
   let ctxt = check_and_align_context ctxt 1 (len + 1) dtype in
@@ -187,7 +202,7 @@ let take_string dtype ctxt =
     s, (advance ctxt (len + 1))
 
 let parse_string ctxt =
-  let s, ctxt = take_string (T.T_base T.B_string) ctxt in
+  let s, ctxt = take_string ctxt in
     V.V_string s, ctxt
 
 (* Valid Object Paths:
@@ -206,7 +221,7 @@ let is_valid_objectpath_char = function
 
 let parse_object_path ctxt =
   let dtype = T.T_base T.B_object_path in
-  let s, ctxt = take_string dtype ctxt in
+  let s, ctxt = take_string ~dtype ctxt in
   let slen = String.length s in
   let prev_was_slash = ref false in
     for i = 0 to slen do
@@ -229,7 +244,7 @@ let parse_object_path ctxt =
 
 let parse_signature ctxt =
   let dtype = T.T_base T.B_signature in
-  let b, ctxt = take_byte dtype ctxt in
+  let b, ctxt = take_byte ~dtype ctxt in
   let slen = Char.code b in
   let s = String.sub ctxt.buffer ctxt.offset slen in
     try V.V_signature (T.signature_of_string s), advance ctxt slen
@@ -266,7 +281,7 @@ let rec parse_complete_type dtype ctxt =
         let vl, ctxt = parse_type_list tl ctxt in
           V.V_variant (tl, vl), ctxt
     | T.T_array t ->
-        let len, ctxt = take_uint32 dtype ctxt in
+        let len, ctxt = take_uint32 ~dtype ctxt in
         let len = Int64.to_int len in
         let align = T.alignment_of t in
         let ctxt = check_and_align_context ctxt align len dtype in
