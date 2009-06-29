@@ -10,7 +10,7 @@ module V = Dbus_value
 
 type flag =
   | Msg_flag_no_reply_expected
-  | Msg_flag_no_autostart
+  | Msg_flag_no_auto_start
 
 type header =
   | Hdr_path
@@ -45,6 +45,17 @@ type method_return =
       method_return_payload : V.t list;
     }
 
+type error =
+    {
+      error_flags : flag list;
+      error_serial : int64;
+      error_name : string;
+      error_destination : string option;
+      error_sender : string option;
+      error_signature : T.t list;
+      error_payload : V.t list;
+    }
+
 type signal =
     {
       signal_flags : flag list;
@@ -57,19 +68,8 @@ type signal =
       signal_payload : V.t list;
     }
 
-type error =
-    {
-      error_flags : flag list;
-      error_serial : int64;
-      error_name : string;
-      error_destination : string option;
-      error_sender : string option;
-      error_signature : T.t list;
-      error_payload : V.t list;
-    }
-
 type t =
   | Msg_method_call of method_call
   | Msg_method_return of method_return
-  | Msg_signal of signal
   | Msg_error of error
+  | Msg_signal of signal
