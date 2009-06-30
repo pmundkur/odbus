@@ -8,6 +8,7 @@ DBUS_FILES[] =
 	dbus_type_parse
 	dbus_message
 	dbus_message_parse
+	dbus_conv
 
 LIB = dbus
 DBUS_LIB = $(OCamlLibrary $(LIB), $(DBUS_FILES))

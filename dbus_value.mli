@@ -16,3 +16,5 @@ type t =
   | V_variant of Dbus_type.t list * t list
 
 val dtypes_of_signature : t -> Dbus_type.t list
+
+val string_type_of : t -> string

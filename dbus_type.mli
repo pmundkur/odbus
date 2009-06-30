@@ -22,6 +22,9 @@ type endian =
   | Little_endian
   | Big_endian
 
+val to_string : t -> string
+val to_code : t -> string
+
 val is_basic_type : t -> bool
 val is_container_type : t -> bool
 

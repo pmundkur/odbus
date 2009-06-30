@@ -197,16 +197,23 @@ let parse_int64 ctxt =
    terminating nul, followed by non-nul string data of the given
    length, followed by a terminating nul byte.
 *)
+let check_valid_string ?(dtype=T.T_base T.B_string) s =
+  let len = String.length s in
+    for i = 0 to len - 1 do
+      if s.[i] = '\x00' then
+        raise_error (Invalid_value (dtype, Inv_embedded_nul));
+    done
+
+let is_valid_string s =
+  try check_valid_string s; true with _ -> false
+
 let take_string ?(dtype=T.T_base T.B_string) ctxt =
   let len, ctxt = take_uint32 ~dtype ctxt in
   let len = Int64.to_int len in
   (* the below call is only to check the length, since we're already aligned. *)
   let ctxt = check_and_align_context ctxt 1 (len + 1) dtype in
   let s = String.sub ctxt.buffer ctxt.offset len in
-    for i = 0 to len - 1 do
-      if s.[i] = '\x00' then
-        raise_error (Invalid_value (dtype, Inv_embedded_nul));
-    done;
+    check_valid_string ~dtype s;
     if ctxt.buffer.[ctxt.offset + len] <> '\x00' then
       raise_error (Invalid_value (dtype, Inv_not_nul_terminated));
     s, (advance ctxt (len + 1))
@@ -229,9 +236,7 @@ let is_valid_objectpath_char = function
   | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '/' -> true
   | _ -> false
 
-let parse_object_path ctxt =
-  let dtype = T.T_base T.B_object_path in
-  let s, ctxt = take_string ~dtype ctxt in
+let check_valid_object_path ?(dtype=T.T_base T.B_object_path) s =
   let slen = String.length s in
   let prev_was_slash = ref false in
     for i = 0 to slen do
@@ -249,7 +254,15 @@ let parse_object_path ctxt =
         raise_error (Invalid_value (dtype, Inv_non_slash_prefix));
       if slen > 1 && s.[slen - 1] = '/' then
         raise_error (Invalid_value (dtype, Inv_slash_terminated));
-    end;
+    end
+
+let is_valid_object_path s =
+  try check_valid_object_path s; true with _ -> false
+
+let parse_object_path ctxt =
+  let dtype = T.T_base T.B_object_path in
+  let s, ctxt = take_string ~dtype ctxt in
+    check_valid_object_path s;
     V.V_object_path s, ctxt
 
 let parse_signature ctxt =

@@ -47,8 +47,13 @@ val take_uint64 : ?dtype:Dbus_type.t -> context -> int64 * context
 val parse_int64 : context -> Dbus_value.t * context
 val parse_uint64 : context -> Dbus_value.t * context
 
+val check_valid_string : ?dtype:Dbus_type.t -> string -> unit
+val is_valid_string : string -> bool
 val take_string : ?dtype:Dbus_type.t -> context -> string * context
 val parse_string : context -> Dbus_value.t * context
+
+val check_valid_object_path : ?dtype:Dbus_type.t -> string -> unit
+val is_valid_object_path : string -> bool
 val parse_object_path : context -> Dbus_value.t * context
 
 val parse_signature : context -> Dbus_value.t * context
