@@ -107,4 +107,3 @@ let to_variant = function
   | v -> raise_error (Unexpected_dbus_type ((V.string_type_of v), "variant"))
 
 let of_variant (t, v) = V.V_variant (t, v)
-

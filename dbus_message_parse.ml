@@ -9,18 +9,17 @@ type msg_type =
   | Msg_type_error
   | Msg_type_signal
 
-type context =
-    {
-      mutable type_context : P.context;
-      mutable msg_type : msg_type;
-      mutable payload_length : int;
-      mutable flags : M.flag list;
-      mutable protocol_version : char;
-      mutable reply_serial : int64;
-      mutable bytes_remaining : int;
-      mutable headers : (M.header * T.t list * V.t list) list;
-      mutable payload_signature : T.t list;
-    }
+type context = {
+  mutable type_context : P.context;
+  mutable msg_type : msg_type;
+  mutable payload_length : int;
+  mutable flags : M.flag list;
+  mutable protocol_version : char;
+  mutable reply_serial : int64;
+  mutable bytes_remaining : int;
+  mutable headers : (M.header * T.t list * V.t list) list;
+  mutable payload_signature : T.t list;
+}
 
 type state =
   | In_fixed_header of string * (* offset *) int

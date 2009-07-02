@@ -20,19 +20,20 @@ exception Parse_error of error
 let raise_error e =
   raise (Parse_error e)
 
-type context =
-    {
-      endian : T.endian;
-      buffer : string;
-      offset : int;
-      length : int;
-    }
+type context = {
+  endian : T.endian;
+  buffer : string;
+  offset : int;
+  length : int;
+}
 
 let init_context endian buffer offset length =
-  { endian = endian;
+  {
+    endian = endian;
     buffer = buffer;
     offset = offset;
-    length = length }
+    length = length
+  }
 
 let append_bytes ctxt str ofs len =
   let blen = String.length ctxt.buffer in
