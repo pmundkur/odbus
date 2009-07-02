@@ -44,7 +44,7 @@ object
           Mech_continue "odbus")
 end
 
-type supported_mechs =
+type auth_mechanism =
   | External
   | Anonymous
 
@@ -86,26 +86,22 @@ let server_proto_of_string s =
              (match try_match_cmd "ERROR" with | Some _ -> Server_error | None ->
                 Server_other s)))
 
-(* Protocol context and states *)
+(* Client parsing state and protocol state machine *)
 
 type client_state =
   | Waiting_for_data
   | Waiting_for_ok
   | Waiting_for_reject
 
+type auth_state =
+  | Auth_in_progress
+  | Auth_failed
+  | Auth_succeeded of (* server address (guid) *) string * (* number of consumed bytes *) int
+
 type cursor =
   | Line of char list
   | Line_CR of char list
   | Line_done of string
-
-type parse_result =
-  | Line_incomplete
-  | Line_complete of string * (* number of consumed bytes *) int
-
-type auth_state =
-  | Auth_in_progress of (* protocol reply *) string
-  | Auth_failed
-  | Auth_succeeded of (* server address (guid) *) string * (* protocol reply *) string
 
 type client_context = {
   mutable state : client_state;
@@ -113,71 +109,11 @@ type client_context = {
   mechanism : mechanism;
 }
 
-let init_client_context mech_type =
-  let mech_str, mech =
-    match mech_type with
-      | External -> "EXTERNAL", (new external_mech : mechanism)
-      | Anonymous -> "ANONYMOUS", (new anonymous_mech : mechanism) in
-  let make_context init_state =
-    { state = init_state;
-      cursor = Line [];
-      mechanism = mech } in
-  let make_init_proto init_resp =
-    if init_resp = "" then Client_auth (mech_str, None)
-    else Client_auth (mech_str, Some init_resp)
-  in match mech#init with
-    | Mech_continue init_resp ->
-        make_init_proto init_resp, make_context Waiting_for_data
-    | Mech_ok init_resp ->
-        make_init_proto init_resp, make_context Waiting_for_ok
-    | Mech_error ->
-        (* Mechanisms shouldn't really have errors on initialization! *)
-        assert false
+type protocol_sender = string -> unit
 
-let rev_string_of_chars cl =
-  let len = List.length cl in
-  let s = String.create len in
-    ignore (List.fold_left (fun idx c -> s.[idx] <- c; idx - 1) (len - 1) cl);
-    s
-
-let parse_char ctxt c =
-  match ctxt.cursor with
-    | Line cl ->
-        (match c with
-           | '\r' -> ctxt.cursor <- Line_CR cl
-           | _    -> ctxt.cursor <- Line (c :: cl)
-        )
-    | Line_CR cl ->
-        (match c with
-           | '\r' -> ctxt.cursor <- Line_CR (c :: cl)
-           | '\n' -> ctxt.cursor <- Line_done (rev_string_of_chars cl)
-           | _    -> ctxt.cursor <- Line (c :: '\r' :: cl)
-        )
-    | Line_done _ ->
-        raise_error (Internal_error "parse_char called on Line_done!")
-
-let is_done ctxt =
-  match ctxt.cursor with
-    | Line_done _ -> true
-    | _ -> false
-
-let parse_line ctxt s ofs len =
-  let i = ref ofs in
-  let iend = ofs + len in
-    while not (is_done ctxt) && !i < iend do
-      parse_char ctxt s.[!i];
-      incr i;
-    done;
-    match ctxt.cursor with
-      | Line_done s -> Line_complete (s, !i - ofs)
-      | _ -> Line_incomplete
-
-(* Client protocol state machine *)
-
-let send client_proto =
-  Printf.sprintf "%s\r\n" (client_proto_to_string client_proto)
-
-let process_server_cmd ctxt s =
+let process_server_cmd ctxt sender s consumed =
+  let send proto =
+    sender (Printf.sprintf "%s\r\n" (client_proto_to_string proto)) in
   let server_proto = server_proto_of_string s in
   match ctxt.state with
     | Waiting_for_data ->
@@ -186,37 +122,46 @@ let process_server_cmd ctxt s =
                (match ctxt.mechanism#challenge data with
                   | Mech_continue resp ->
                       ctxt.state <- Waiting_for_data;
-                      Auth_in_progress (send (Client_data resp))
+                      send (Client_data resp);
+                      Auth_in_progress
                   | Mech_ok resp ->
                       ctxt.state <- Waiting_for_ok;
-                      Auth_in_progress (send (Client_data resp))
+                      send (Client_data resp);
+                      Auth_in_progress
                   | Mech_error ->
-                      Auth_in_progress (send (Client_error "Auth mechanism failure"))
+                      send (Client_error "Auth mechanism failure");
+                      Auth_in_progress
                )
            | Server_rejected _ ->
                (* TODO: attempt via a hitherto untried mechanism, before failing *)
                Auth_failed
            | Server_error ->
                ctxt.state <- Waiting_for_reject;
-               Auth_in_progress (send Client_cancel)
+               send Client_cancel;
+               Auth_in_progress
            | Server_ok server_addr ->
-               Auth_succeeded (server_addr, (send Client_begin))
+               send Client_begin;
+               Auth_succeeded (server_addr, consumed)
            | Server_other _ ->
-               Auth_in_progress (send (Client_error "unrecognized protocol"))
+               send (Client_error "unrecognized protocol");
+               Auth_in_progress
         )
     | Waiting_for_ok ->
         (match server_proto with
            | Server_ok server_addr ->
-               Auth_succeeded (server_addr, (send Client_begin))
+               send Client_begin;
+               Auth_succeeded (server_addr, consumed)
            | Server_rejected _ ->
                (* TODO: attempt via a hitherto untried mechanism, before failing *)
                Auth_failed
            | Server_error
            | Server_data _ ->
                ctxt.state <- Waiting_for_reject;
-               Auth_in_progress (send Client_cancel)
+               send Client_cancel;
+               Auth_in_progress
            | Server_other _ ->
-               Auth_in_progress (send (Client_error "unrecognized protocol"))
+               send (Client_error "unrecognized protocol");
+               Auth_in_progress
         )
     | Waiting_for_reject ->
         (match server_proto with
@@ -229,3 +174,85 @@ let process_server_cmd ctxt s =
            | Server_other _ ->
                Auth_failed
         )
+
+(* Protocol initialization and parsing *)
+
+let init_client_context mech_type sender =
+  let mech_str, mech =
+    match mech_type with
+      | External -> "EXTERNAL", (new external_mech : mechanism)
+      | Anonymous -> "ANONYMOUS", (new anonymous_mech : mechanism) in
+  let send init_resp =
+    let proto =
+      if init_resp = "" then Client_auth (mech_str, None)
+      else Client_auth (mech_str, Some init_resp)
+    in
+      sender (Printf.sprintf "%s\r\n" (client_proto_to_string proto)) in
+  let make_context init_state =
+    { state = init_state;
+      cursor = Line [];
+      mechanism = mech }
+  in match mech#init with
+    | Mech_continue init_resp ->
+        send init_resp;
+        make_context Waiting_for_data, Auth_in_progress
+    | Mech_ok init_resp ->
+        send init_resp;
+        make_context Waiting_for_ok, Auth_in_progress
+    | Mech_error ->
+        (* Mechanisms shouldn't really have errors on initialization! *)
+        make_context Waiting_for_reject, Auth_failed
+
+let rev_string_of_chars cl =
+  let len = List.length cl in
+  let s = String.create len in
+    ignore (List.fold_left (fun idx c -> s.[idx] <- c; idx - 1) (len - 1) cl);
+    s
+
+let parse_char ctxt c =
+  match ctxt.cursor with
+    | Line cl ->
+        (match c with
+           | '\r' -> ctxt.cursor <- Line_CR cl
+           | '\n' -> raise_error (Unexpected_char c)
+           | _    -> ctxt.cursor <- Line (c :: cl)
+        )
+    | Line_CR cl ->
+        (match c with
+           | '\r' -> ctxt.cursor <- Line_CR (c :: cl)
+           | '\n' -> ctxt.cursor <- Line_done (rev_string_of_chars cl)
+           | _    -> ctxt.cursor <- Line (c :: '\r' :: cl)
+        )
+    | Line_done _ ->
+        raise_error (Internal_error "parse_char called on Line_done!")
+
+let is_line_done ctxt =
+  match ctxt.cursor with
+    | Line_done _ -> true
+    | _ -> false
+
+exception Done of auth_state
+let parse_input ctxt sender s start len =
+  let iend = start + len in
+  let rec helper ofs =
+    let i = ref ofs in
+      while not (is_line_done ctxt) && !i < iend do
+        parse_char ctxt s.[!i];
+        incr i;
+      done;
+      match ctxt.cursor with
+        | Line_done s ->
+            ctxt.cursor <- Line [];
+            let result = process_server_cmd ctxt sender s (!i - start) in
+              (match result with
+                 | Auth_failed
+                 | Auth_succeeded _ ->
+                     raise (Done result)
+                 | Auth_in_progress ->
+                     helper !i
+              )
+        | _ ->
+            Auth_in_progress
+  in
+    try helper start
+    with Done result -> result
