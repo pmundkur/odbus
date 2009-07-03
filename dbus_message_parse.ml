@@ -151,30 +151,30 @@ let process_headers ctxt =
     ctxt.bytes_remaining <- ctxt.payload_length;
     ignore (hdr_array)
 
-    let rec parse_substring state str ofs len =
-      match state with
-        | In_fixed_header (buffer, offset) ->
-            assert (Protocol.fixed_header_length > offset);
-            let fh_bytes_remaining = Protocol.fixed_header_length - offset in
-            let bytes_to_consume = min len fh_bytes_remaining in
-              String.blit str ofs buffer offset bytes_to_consume;
-              let offset = offset + bytes_to_consume in
-                if bytes_to_consume < fh_bytes_remaining
-                then Parse_incomplete (In_fixed_header (buffer, offset))
-                else begin
-                  let ctxt = process_fixed_header buffer in
-                    if ctxt.bytes_remaining = 0
-                    then Parse_result (make_message ctxt, len - bytes_to_consume)
-                    else (parse_substring (In_headers ctxt)
-                            str (ofs + bytes_to_consume) (len - bytes_to_consume))
-                end
-        | In_headers ctxt ->
-            let bytes_to_consume = min len ctxt.bytes_remaining in
-            let tctxt = P.append_bytes ctxt.type_context str ofs bytes_to_consume in
-              ctxt.type_context <- tctxt;
-              ctxt.bytes_remaining <- ctxt.bytes_remaining - bytes_to_consume;
-              if ctxt.bytes_remaining = 0 then process_headers ctxt;
-              (* We need to check again to see if we expect a payload. *)
+let rec parse_substring state str ofs len =
+  match state with
+    | In_fixed_header (buffer, offset) ->
+        assert (Protocol.fixed_header_length > offset);
+        let fh_bytes_remaining = Protocol.fixed_header_length - offset in
+        let bytes_to_consume = min len fh_bytes_remaining in
+          String.blit str ofs buffer offset bytes_to_consume;
+          let offset = offset + bytes_to_consume in
+            if bytes_to_consume < fh_bytes_remaining
+            then Parse_incomplete (In_fixed_header (buffer, offset))
+            else begin
+              let ctxt = process_fixed_header buffer in
+                if ctxt.bytes_remaining = 0
+                then Parse_result (make_message ctxt, len - bytes_to_consume)
+                else (parse_substring (In_headers ctxt)
+                        str (ofs + bytes_to_consume) (len - bytes_to_consume))
+            end
+    | In_headers ctxt ->
+        let bytes_to_consume = min len ctxt.bytes_remaining in
+        let tctxt = P.append_bytes ctxt.type_context str ofs bytes_to_consume in
+          ctxt.type_context <- tctxt;
+          ctxt.bytes_remaining <- ctxt.bytes_remaining - bytes_to_consume;
+          if ctxt.bytes_remaining = 0 then process_headers ctxt;
+          (* We need to check again to see if we expect a payload. *)
           if ctxt.bytes_remaining = 0
           then Parse_result (make_message ctxt, len - bytes_to_consume)
           else (parse_substring (In_payload ctxt)
