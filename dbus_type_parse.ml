@@ -3,12 +3,8 @@ module V = Dbus_value
 
 type inv_reason =
   | Inv_non_boolean
-  | Inv_embedded_nul
-  | Inv_not_nul_terminated
-  | Inv_objectpath_char
-  | Inv_consecutive_slashes
-  | Inv_non_slash_prefix
-  | Inv_slash_terminated
+  | Inv_string of V.string_error
+  | Inv_object_path of V.object_path_error
   | Inv_signature of T.sig_error
   | Inv_array_length
 
@@ -193,20 +189,10 @@ let parse_int64 ctxt =
   let i, ctxt = take_uint64 ~dtype:(T.T_base T.B_int64) ctxt in
     V.V_int64 i, ctxt
 
-(* Valid String:
-   A UINT32 indicating the string's length in bytes excluding its
-   terminating nul, followed by non-nul string data of the given
-   length, followed by a terminating nul byte.
-*)
 let check_valid_string ?(dtype=T.T_base T.B_string) s =
-  let len = String.length s in
-    for i = 0 to len - 1 do
-      if s.[i] = '\x00' then
-        raise_error (Invalid_value (dtype, Inv_embedded_nul));
-    done
-
-let is_valid_string s =
-  try check_valid_string s; true with _ -> false
+  try V.check_valid_string s
+  with V.Invalid_value_error (V.String_error e) ->
+    raise_error (Invalid_value (dtype, Inv_string e))
 
 let take_string ?(dtype=T.T_base T.B_string) ctxt =
   let len, ctxt = take_uint32 ~dtype ctxt in
@@ -216,49 +202,18 @@ let take_string ?(dtype=T.T_base T.B_string) ctxt =
   let s = String.sub ctxt.buffer ctxt.offset len in
     check_valid_string ~dtype s;
     if ctxt.buffer.[ctxt.offset + len] <> '\x00' then
-      raise_error (Invalid_value (dtype, Inv_not_nul_terminated));
+      raise_error (Invalid_value (dtype, Inv_string V.String_not_nul_terminated));
     s, (advance ctxt (len + 1))
 
 let parse_string ctxt =
   let s, ctxt = take_string ctxt in
     V.V_string s, ctxt
 
-(* Valid Object Paths:
-   . The path must begin with an ASCII '/' (integer 47) character,
-     and must consist of elements separated by slash characters.
-   . Each element must only contain the ASCII characters
-     "[A-Z][a-z][0-9]_"
-   . No element may be the empty string.
-   . Multiple '/' characters cannot occur in sequence.
-   . A trailing '/' character is not allowed unless the path is
-     the root path (a single '/' character).
-*)
-let is_valid_objectpath_char = function
-  | 'A' .. 'Z' | 'a' .. 'z' | '0' .. '9' | '_' | '/' -> true
-  | _ -> false
-
 let check_valid_object_path ?(dtype=T.T_base T.B_object_path) s =
-  let slen = String.length s in
-  let prev_was_slash = ref false in
-    for i = 0 to slen do
-      if not (is_valid_objectpath_char s.[i]) then
-        raise_error (Invalid_value (dtype, Inv_objectpath_char));
-      if not !prev_was_slash && s.[i] = '/' then
-        prev_was_slash := true
-      else if !prev_was_slash then
-        if s.[i] = '/'
-        then raise_error (Invalid_value (dtype, Inv_consecutive_slashes))
-        else prev_was_slash := false;
-    done;
-    if slen > 0 then begin
-      if s.[0] <> '/' then
-        raise_error (Invalid_value (dtype, Inv_non_slash_prefix));
-      if slen > 1 && s.[slen - 1] = '/' then
-        raise_error (Invalid_value (dtype, Inv_slash_terminated));
-    end
-
-let is_valid_object_path s =
-  try check_valid_object_path s; true with _ -> false
+  try V.check_valid_object_path s
+  with
+    | V.Invalid_value_error (V.Object_path_error e) ->
+        raise_error (Invalid_value (dtype, Inv_object_path e))
 
 let parse_object_path ctxt =
   let dtype = T.T_base T.B_object_path in

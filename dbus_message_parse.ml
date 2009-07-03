@@ -40,6 +40,7 @@ let raise_error e =
 
 (* Protocol constants *)
 module Protocol = struct
+  (* the minimum size of a message *)
   let fixed_header_length = 16
 
   let little_endian = 'l'
@@ -54,13 +55,28 @@ module Protocol = struct
   let no_auto_start_flag = 0x2
 
   let path_hdr = 1
+  let path_hdr_type = T.T_base T.B_object_path
+
   let interface_hdr = 2
+  let interface_hdr_type = T.T_base T.B_string
+
   let member_hdr = 3
+  let member_hdr_type = T.T_base T.B_string
+
   let error_name_hdr = 4
+  let error_name_hdr_type = T.T_base T.B_string
+
   let reply_serial_hdr = 5
+  let reply_serial_hdr_type = T.T_base T.B_uint32
+
   let destination_hdr = 6
+  let destination_hdr_type = T.T_base T.B_string
+
   let sender_hdr = 7
+  let sender_hdr_type = T.T_base T.B_string
+
   let signature_hdr = 8
+  let signature_hdr_type = T.T_base T.B_signature
 end
 
 let init_state () =

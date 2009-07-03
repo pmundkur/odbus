@@ -1,11 +1,7 @@
 type inv_reason =
   | Inv_non_boolean
-  | Inv_embedded_nul
-  | Inv_not_nul_terminated
-  | Inv_objectpath_char
-  | Inv_consecutive_slashes
-  | Inv_non_slash_prefix
-  | Inv_slash_terminated
+  | Inv_string of Dbus_value.string_error
+  | Inv_object_path of Dbus_value.object_path_error
   | Inv_signature of Dbus_type.sig_error
   | Inv_array_length
 
@@ -47,13 +43,9 @@ val take_uint64 : ?dtype:Dbus_type.t -> context -> int64 * context
 val parse_int64 : context -> Dbus_value.t * context
 val parse_uint64 : context -> Dbus_value.t * context
 
-val check_valid_string : ?dtype:Dbus_type.t -> string -> unit
-val is_valid_string : string -> bool
 val take_string : ?dtype:Dbus_type.t -> context -> string * context
 val parse_string : context -> Dbus_value.t * context
 
-val check_valid_object_path : ?dtype:Dbus_type.t -> string -> unit
-val is_valid_object_path : string -> bool
 val parse_object_path : context -> Dbus_value.t * context
 
 val parse_signature : context -> Dbus_value.t * context
