@@ -172,16 +172,17 @@ let make_method_call_msg ctxt =
   let interface = lookup_optional_string_header M.Hdr_interface ctxt in
   let destination = lookup_optional_string_header M.Hdr_destination ctxt in
   let sender = lookup_optional_string_header M.Hdr_sender ctxt in
-    M.Msg_method_call { M.method_call_flags = ctxt.flags;
-                        M.method_call_serial = ctxt.serial;
-                        M.method_call_path = path;
-                        M.method_call_member = member;
-                        M.method_call_interface = interface;
-                        M.method_call_destination = destination;
-                        M.method_call_sender = sender;
-                        M.method_call_signature = ctxt.signature;
-                        M.method_call_payload = ctxt.payload;
-                      }
+    M.Msg_method_call {
+      M.method_call_flags = ctxt.flags;
+      M.method_call_serial = ctxt.serial;
+      M.method_call_path = path;
+      M.method_call_member = member;
+      M.method_call_interface = interface;
+      M.method_call_destination = destination;
+      M.method_call_sender = sender;
+      M.method_call_signature = ctxt.signature;
+      M.method_call_payload = ctxt.payload;
+    }
 
 let make_method_return_msg ctxt =
   let lookup_required = lookup_required_header Msg_type_method_return in
@@ -189,14 +190,15 @@ let make_method_return_msg ctxt =
   let reply_serial = C.to_uint32 reply_serial_val in
   let destination = lookup_optional_string_header M.Hdr_destination ctxt in
   let sender = lookup_optional_string_header M.Hdr_sender ctxt in
-    M.Msg_method_return { M.method_return_flags = ctxt.flags;
-                          M.method_return_serial = ctxt.serial;
-                          M.method_return_reply_serial = reply_serial;
-                          M.method_return_destination = destination;
-                          M.method_return_sender = sender;
-                          M.method_return_signature = ctxt.signature;
-                          M.method_return_payload = ctxt.payload;
-                        }
+    M.Msg_method_return {
+      M.method_return_flags = ctxt.flags;
+      M.method_return_serial = ctxt.serial;
+      M.method_return_reply_serial = reply_serial;
+      M.method_return_destination = destination;
+      M.method_return_sender = sender;
+      M.method_return_signature = ctxt.signature;
+      M.method_return_payload = ctxt.payload;
+    }
 
 let make_error_msg ctxt =
   let lookup_required = lookup_required_header Msg_type_error in
@@ -206,15 +208,16 @@ let make_error_msg ctxt =
   let reply_serial = C.to_uint32 reply_serial_val in
   let destination = lookup_optional_string_header M.Hdr_destination ctxt in
   let sender = lookup_optional_string_header M.Hdr_sender ctxt in
-    M.Msg_error { M.error_flags = ctxt.flags;
-                  M.error_serial = ctxt.serial;
-                  M.error_name = error_name;
-                  M.error_reply_serial = reply_serial;
-                  M.error_destination = destination;
-                  M.error_sender = sender;
-                  M.error_signature = ctxt.signature;
-                  M.error_payload = ctxt.payload;
-                }
+    M.Msg_error {
+      M.error_flags = ctxt.flags;
+      M.error_serial = ctxt.serial;
+      M.error_name = error_name;
+      M.error_reply_serial = reply_serial;
+      M.error_destination = destination;
+      M.error_sender = sender;
+      M.error_signature = ctxt.signature;
+      M.error_payload = ctxt.payload;
+    }
 
 let make_signal_msg ctxt =
   let lookup_required = lookup_required_header Msg_type_signal in
@@ -226,16 +229,17 @@ let make_signal_msg ctxt =
   let member = C.to_string member_val in
   let destination = lookup_optional_string_header M.Hdr_destination ctxt in
   let sender = lookup_optional_string_header M.Hdr_sender ctxt in
-    M.Msg_signal { M.signal_flags = ctxt.flags;
-                   M.signal_serial = ctxt.serial;
-                   M.signal_path = path;
-                   M.signal_interface = interface;
-                   M.signal_member = member;
-                   M.signal_destination = destination;
-                   M.signal_sender = sender;
-                   M.signal_signature = ctxt.signature;
-                   M.signal_payload = ctxt.payload;
-                 }
+    M.Msg_signal {
+      M.signal_flags = ctxt.flags;
+      M.signal_serial = ctxt.serial;
+      M.signal_path = path;
+      M.signal_interface = interface;
+      M.signal_member = member;
+      M.signal_destination = destination;
+      M.signal_sender = sender;
+      M.signal_signature = ctxt.signature;
+      M.signal_payload = ctxt.payload;
+    }
 
 let make_message ctxt =
   match ctxt.msg_type with
@@ -263,8 +267,8 @@ let process_fixed_header buffer =
        array struct element, since it starts at byte 16, and hence is
        already 8-aligned. *)
   let bytes_remaining, tctxt = P.take_uint32 tctxt in
-    (init_context tctxt msg_type (Int64.to_int payload_length) flags
-       protocol_version serial (Int64.to_int bytes_remaining))
+    init_context tctxt msg_type (Int64.to_int payload_length) flags
+      protocol_version serial (Int64.to_int bytes_remaining)
 
 let unpack_headers hdr_array =
   (* hdr_array is an array of byte-indexed dict_entries (structs); we

@@ -189,9 +189,11 @@ let init_client_context mech_type sender =
     in
       sender (Printf.sprintf "%s\r\n" (client_proto_to_string proto)) in
   let make_context init_state =
-    { state = init_state;
+    {
+      state = init_state;
       cursor = Line [];
-      mechanism = mech }
+      mechanism = mech;
+    }
   in match mech#init with
     | Mech_continue init_resp ->
         send init_resp;

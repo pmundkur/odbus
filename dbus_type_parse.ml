@@ -29,7 +29,7 @@ let init_context endian buffer offset length =
     endian = endian;
     buffer = buffer;
     offset = offset;
-    length = length
+    length = length;
   }
 
 let append_bytes ctxt str ofs len =
@@ -43,19 +43,22 @@ let append_bytes ctxt str ofs len =
       String.blit str ofs ctxt.buffer append_offset len;
       { ctxt with
           buffer = new_buffer;
-          length = ctxt.length + len }
+          length = ctxt.length + len;
+      }
 
 let advance ctxt nbytes =
   assert (ctxt.length >= nbytes);
   { ctxt with
       offset = ctxt.offset + nbytes;
-      length = ctxt.length - nbytes }
+      length = ctxt.length - nbytes;
+  }
 
 let rewind ctxt nbytes =
   assert (ctxt.offset >= nbytes);
   { ctxt with
       offset = ctxt.offset - nbytes;
-      length = ctxt.length + nbytes }
+      length = ctxt.length + nbytes;
+  }
 
 let check_and_align_context ctxt alignment size dtype =
   let padding = T.get_padding ctxt.offset alignment in
