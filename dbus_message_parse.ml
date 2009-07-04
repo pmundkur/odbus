@@ -16,10 +16,11 @@ type context = {
   mutable payload_length : int;
   mutable flags : M.flag list;
   mutable protocol_version : char;
-  mutable reply_serial : int64;
+  mutable serial : int64;
   mutable bytes_remaining : int;
-  mutable headers : (M.header * T.t * V.t) list;
-  mutable payload_signature : T.t list;
+  mutable headers : (M.header * (T.t * V.t)) list;
+  mutable signature : T.t list;
+  mutable payload : V.t list;
 }
 
 type state =
@@ -36,6 +37,8 @@ type error =
   | Unknown_msg_type of int
   | Unexpected_header_arity of M.header * (* received *) T.t list
   | Unexpected_header_type of M.header * (* received *) T.t * (* expected *) T.t
+  | Missing_signature_header_for_payload
+  | Missing_required_header of msg_type * M.header
 
 exception Parse_error of error
 let raise_error e =
@@ -100,17 +103,18 @@ let init_state () =
     In_fixed_header (buffer, 0)
 
 let init_context type_context msg_type payload_length flags protocol_version
-    reply_serial bytes_remaining =
+    serial bytes_remaining =
   {
     type_context = type_context;
     msg_type = msg_type;
     payload_length = payload_length;
     flags = flags;
     protocol_version = protocol_version;
-    reply_serial = reply_serial;
+    serial = serial;
     bytes_remaining = bytes_remaining;
     headers = [];
-    payload_signature = [];
+    signature = [];
+    payload = [];
   }
 
 let parse_flags flags =
@@ -140,14 +144,105 @@ let parse_msg_type mtype =
   then Msg_type_signal
   else raise_error (Unknown_msg_type mtype)
 
+let lookup_required_header msg_type hdr ctxt =
+  try List.assoc hdr ctxt.headers
+  with Not_found -> raise_error (Missing_required_header (msg_type, hdr))
+
+let lookup_optional_header hdr ctxt =
+  try Some (List.assoc hdr ctxt.headers)
+  with Not_found -> None
+
+let lookup_optional_string_header hdr ctxt =
+  match lookup_optional_header hdr ctxt with
+    | Some (_, string_val) -> Some (C.to_string string_val)
+    | None -> None
+
+(* For more informative error handling during header processing below,
+   we should also check that the header variant-values have the
+   expected types; for now, we rely on C.to_* throwing
+   (less-informative) conversion exceptions.
+*)
+
+let make_method_call_msg ctxt =
+  let lookup_required = lookup_required_header Msg_type_method_call in
+  let _, path_val = lookup_required M.Hdr_path ctxt in
+  let _, member_val = lookup_required M.Hdr_member ctxt in
+  let path = C.to_object_path path_val in
+  let member = C.to_string member_val in
+  let interface = lookup_optional_string_header M.Hdr_interface ctxt in
+  let destination = lookup_optional_string_header M.Hdr_destination ctxt in
+  let sender = lookup_optional_string_header M.Hdr_sender ctxt in
+    M.Msg_method_call { M.method_call_flags = ctxt.flags;
+                        M.method_call_serial = ctxt.serial;
+                        M.method_call_path = path;
+                        M.method_call_member = member;
+                        M.method_call_interface = interface;
+                        M.method_call_destination = destination;
+                        M.method_call_sender = sender;
+                        M.method_call_signature = ctxt.signature;
+                        M.method_call_payload = ctxt.payload;
+                      }
+
+let make_method_return_msg ctxt =
+  let lookup_required = lookup_required_header Msg_type_method_return in
+  let _, reply_serial_val = lookup_required M.Hdr_reply_serial ctxt in
+  let reply_serial = C.to_uint32 reply_serial_val in
+  let destination = lookup_optional_string_header M.Hdr_destination ctxt in
+  let sender = lookup_optional_string_header M.Hdr_sender ctxt in
+    M.Msg_method_return { M.method_return_flags = ctxt.flags;
+                          M.method_return_serial = ctxt.serial;
+                          M.method_return_reply_serial = reply_serial;
+                          M.method_return_destination = destination;
+                          M.method_return_sender = sender;
+                          M.method_return_signature = ctxt.signature;
+                          M.method_return_payload = ctxt.payload;
+                        }
+
+let make_error_msg ctxt =
+  let lookup_required = lookup_required_header Msg_type_error in
+  let _, error_name_val = lookup_required M.Hdr_path ctxt in
+  let error_name = C.to_string error_name_val in
+  let _, reply_serial_val = lookup_required M.Hdr_reply_serial ctxt in
+  let reply_serial = C.to_uint32 reply_serial_val in
+  let destination = lookup_optional_string_header M.Hdr_destination ctxt in
+  let sender = lookup_optional_string_header M.Hdr_sender ctxt in
+    M.Msg_error { M.error_flags = ctxt.flags;
+                  M.error_serial = ctxt.serial;
+                  M.error_name = error_name;
+                  M.error_reply_serial = reply_serial;
+                  M.error_destination = destination;
+                  M.error_sender = sender;
+                  M.error_signature = ctxt.signature;
+                  M.error_payload = ctxt.payload;
+                }
+
+let make_signal_msg ctxt =
+  let lookup_required = lookup_required_header Msg_type_signal in
+  let _, path_val = lookup_required M.Hdr_path ctxt in
+  let _, interface_val = lookup_required M.Hdr_interface ctxt in
+  let _, member_val = lookup_required M.Hdr_member ctxt in
+  let path = C.to_object_path path_val in
+  let interface = C.to_string interface_val in
+  let member = C.to_string member_val in
+  let destination = lookup_optional_string_header M.Hdr_destination ctxt in
+  let sender = lookup_optional_string_header M.Hdr_sender ctxt in
+    M.Msg_signal { M.signal_flags = ctxt.flags;
+                   M.signal_serial = ctxt.serial;
+                   M.signal_path = path;
+                   M.signal_interface = interface;
+                   M.signal_member = member;
+                   M.signal_destination = destination;
+                   M.signal_sender = sender;
+                   M.signal_signature = ctxt.signature;
+                   M.signal_payload = ctxt.payload;
+                 }
+
 let make_message ctxt =
-  (* TODO *)
-  M.Msg_method_return { M.method_return_flags = [];
-                        M.method_return_serial = 0L;
-                        M.method_return_destination = None;
-                        M.method_return_sender = None;
-                        M.method_return_signature = [];
-                        M.method_return_payload = [] }
+  match ctxt.msg_type with
+    | Msg_type_method_call      -> make_method_call_msg ctxt
+    | Msg_type_method_return    -> make_method_return_msg ctxt
+    | Msg_type_error            -> make_error_msg ctxt
+    | Msg_type_signal           -> make_signal_msg ctxt
 
 let process_fixed_header buffer =
   let endian =
@@ -161,7 +256,7 @@ let process_fixed_header buffer =
   let flags = parse_flags flags in
   let protocol_version, tctxt = P.take_byte tctxt in
   let payload_length, tctxt = P.take_uint32 tctxt in
-  let reply_serial, tctxt = P.take_uint32 tctxt in
+  let serial, tctxt = P.take_uint32 tctxt in
     (* To set the remaining bytes for the header, we first extract the
        header array length, and position the context just after it.
        There is no padding between the array length and the first
@@ -169,7 +264,7 @@ let process_fixed_header buffer =
        already 8-aligned. *)
   let bytes_remaining, tctxt = P.take_uint32 tctxt in
     (init_context tctxt msg_type (Int64.to_int payload_length) flags
-       protocol_version reply_serial (Int64.to_int bytes_remaining))
+       protocol_version serial (Int64.to_int bytes_remaining))
 
 let unpack_headers hdr_array =
   (* hdr_array is an array of byte-indexed dict_entries (structs); we
@@ -199,7 +294,7 @@ let unpack_headers hdr_array =
                           if ht <> hdr_type
                             (* ht is an unexpected type for standard header *)
                           then raise_error (Unexpected_header_type (hdr, ht, hdr_type))
-                          else [ hdr, hdr_type, (List.hd hv) ]
+                          else [ hdr, (hdr_type, (List.hd hv)) ]
                       | _ ->
                           raise_error (Unexpected_header_arity (hdr, htlist))
                 with Not_found -> []
@@ -223,6 +318,23 @@ let process_headers ctxt =
     ctxt.headers <- headers;
     (* We now prepare to read in the payload, if any. *)
     ctxt.bytes_remaining <- ctxt.payload_length
+
+let process_payload ctxt =
+  (* We have a payload, so we should have a signature header. *)
+  let _, sigval =
+    try List.assoc M.Hdr_signature ctxt.headers
+    with Not_found -> raise_error Missing_signature_header_for_payload in
+    (* For more informative error handling, we should also check that
+       the signature header has a signature-type; for now, we rely on
+       C.to_signature throwing a (less-informative) conversion
+       exception. *)
+  let signature = C.to_signature sigval in
+    (* The parsing context has already been adjusted for us in
+       process_headers, so we're ready to parse the payload. *)
+  let payload, tctxt = P.parse_type_list signature ctxt.type_context in
+    ctxt.signature <- signature;
+    ctxt.payload <- payload;
+    ctxt.type_context <- tctxt
 
 let rec parse_substring state str ofs len =
   match state with
@@ -264,9 +376,6 @@ let rec parse_substring state str ofs len =
           if ctxt.bytes_remaining > 0
           then Parse_incomplete (In_payload ctxt)
           else begin
-            (* TODO: lookup signature header.  if there is no
-               signature, then there is an error, since we have a
-               payload.  parse payload according to signature.
-            *)
+            process_payload ctxt;
             Parse_result (make_message ctxt, len - bytes_to_consume)
           end
