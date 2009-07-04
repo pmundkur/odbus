@@ -1,5 +1,7 @@
 CLEAN = rm -f *.annot *.cmi *.cmo *.cmxa *.cmx *.o *.a *.opt
 
+BYTE_ENABLED = true
+
 OCAMLFLAGS += -dtypes
 
 DBUS_FILES[] =
@@ -10,6 +12,7 @@ DBUS_FILES[] =
 	dbus_message_parse
 	dbus_conv
 	dbus_auth
+	utils
 
 LIB = dbus
 DBUS_LIB = $(OCamlLibrary $(LIB), $(DBUS_FILES))

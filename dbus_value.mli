@@ -41,13 +41,15 @@ type error =
 
 exception Invalid_value_error of error
 
-val dtypes_of_signature : t -> Dbus_type.t list
 val string_type_of : t -> string
 
+(* String validity checker: raises Invalid_value_error String_error *)
 val check_valid_string : string -> unit
 val is_valid_string : string -> bool
 
+(* Object_path validity checker: raises Invalid_value_error Object_path_error *)
 val check_valid_object_path : string -> unit
 val is_valid_object_path : string -> bool
 
+(* Type checker: raises Invalid_value_error Type_mismatch. *)
 val type_check : Dbus_type.t -> t -> unit

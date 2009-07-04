@@ -11,6 +11,11 @@ exception Dbus_conv of error
 let raise_error e =
   raise (Dbus_conv e)
 
+(* Note that in the below to_* functions (Dbus.t -> Ocaml.t), only a
+   single unpacking of variant arguments is done (the recursive call
+   leaves ?unpack_variants defaulting to false.
+*)
+
 let rec to_byte ?(unpack_variants=false) = function
   | V.V_byte c -> c
   | V.V_variant ([ T.T_base T.B_byte ], [ v ])

@@ -1,5 +1,6 @@
 module T = Dbus_type
 module V = Dbus_value
+module C = Dbus_conv
 
 type inv_reason =
   | Inv_non_boolean
@@ -256,7 +257,7 @@ let rec parse_complete_type dtype ctxt =
         (get_base_parser b) ctxt
     | T.T_variant ->
         let s, ctxt = parse_signature ctxt in
-        let tl = V.dtypes_of_signature s in
+        let tl = C.to_signature s in
         let vl, ctxt = parse_type_list tl ctxt in
           V.V_variant (tl, vl), ctxt
     | T.T_array t ->

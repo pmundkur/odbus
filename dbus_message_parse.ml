@@ -1,6 +1,7 @@
 module T = Dbus_type
-module P = Dbus_type_parse
 module V = Dbus_value
+module C = Dbus_conv
+module P = Dbus_type_parse
 module M = Dbus_message
 
 type msg_type =
@@ -17,7 +18,7 @@ type context = {
   mutable protocol_version : char;
   mutable reply_serial : int64;
   mutable bytes_remaining : int;
-  mutable headers : (M.header * T.t list * V.t list) list;
+  mutable headers : (M.header * T.t * V.t) list;
   mutable payload_signature : T.t list;
 }
 
@@ -33,6 +34,8 @@ type parse_result =
 type error =
   | Invalid_endian
   | Unknown_msg_type of int
+  | Unexpected_header_arity of M.header * (* received *) T.t list
+  | Unexpected_header_type of M.header * (* received *) T.t * (* expected *) T.t
 
 exception Parse_error of error
 let raise_error e =
@@ -51,32 +54,45 @@ module Protocol = struct
   let error_msg = 3
   let signal_msg = 4
 
+  let hdr_array_type = T.T_array (T.T_struct [ T.T_base T.B_byte; T.T_variant ])
+
   let no_reply_expected_flag = 0x1
   let no_auto_start_flag = 0x2
 
-  let path_hdr = 1
+  let path_hdr = Char.chr 1
   let path_hdr_type = T.T_base T.B_object_path
 
-  let interface_hdr = 2
+  let interface_hdr = Char.chr 2
   let interface_hdr_type = T.T_base T.B_string
 
-  let member_hdr = 3
+  let member_hdr = Char.chr 3
   let member_hdr_type = T.T_base T.B_string
 
-  let error_name_hdr = 4
+  let error_name_hdr = Char.chr 4
   let error_name_hdr_type = T.T_base T.B_string
 
-  let reply_serial_hdr = 5
+  let reply_serial_hdr = Char.chr 5
   let reply_serial_hdr_type = T.T_base T.B_uint32
 
-  let destination_hdr = 6
+  let destination_hdr = Char.chr 6
   let destination_hdr_type = T.T_base T.B_string
 
-  let sender_hdr = 7
+  let sender_hdr = Char.chr 7
   let sender_hdr_type = T.T_base T.B_string
 
-  let signature_hdr = 8
+  let signature_hdr = Char.chr 8
   let signature_hdr_type = T.T_base T.B_signature
+
+  let all_headers = [
+    (path_hdr, path_hdr_type, M.Hdr_path);
+    (interface_hdr, interface_hdr_type, M.Hdr_interface);
+    (member_hdr, member_hdr_type, M.Hdr_member);
+    (error_name_hdr, error_name_hdr_type, M.Hdr_error_name);
+    (reply_serial_hdr, reply_serial_hdr_type, M.Hdr_reply_serial);
+    (destination_hdr, destination_hdr_type, M.Hdr_destination);
+    (sender_hdr, sender_hdr_type, M.Hdr_sender);
+    (signature_hdr, signature_hdr_type, M.Hdr_signature);
+  ]
 end
 
 let init_state () =
@@ -155,17 +171,58 @@ let process_fixed_header buffer =
     (init_context tctxt msg_type (Int64.to_int payload_length) flags
        protocol_version reply_serial (Int64.to_int bytes_remaining))
 
+let unpack_headers hdr_array =
+  (* hdr_array is an array of byte-indexed dict_entries (structs); we
+     want to get a byte-indexed list of pairs for use with
+     List.assoc. *)
+  let hl = Array.to_list (C.to_array hdr_array) in
+  let hl = List.map (fun hs -> C.to_struct hs) hl in
+  let assoc = List.map (fun hv ->
+                          let hb = List.nth hv 0 in
+                          let hv = List.nth hv 1 in
+                            (C.to_byte hb, C.to_variant hv)
+                       ) hl in
+  (* For now, we just look up the known standard headers; we could
+     store the unknown headers too in the message if we really need
+     them. *)
+  let headers =
+    List.map (fun (hdr_code, hdr_type, hdr) ->
+                try
+                  let htlist, hv = List.assoc hdr_code assoc in
+                  (* The standard headers are single base values. *)
+                    match htlist with
+                      | [ ht ] ->
+                          (* Our variant parser should guarantee that
+                             the variant signature matches the value;
+                             and so we can safely List.hd below. *)
+                          assert (List.length hv = 1);
+                          if ht <> hdr_type
+                            (* ht is an unexpected type for standard header *)
+                          then raise_error (Unexpected_header_type (hdr, ht, hdr_type))
+                          else [ hdr, hdr_type, (List.hd hv) ]
+                      | _ ->
+                          raise_error (Unexpected_header_arity (hdr, htlist))
+                with Not_found -> []
+             ) Protocol.all_headers
+  in List.concat headers
+
 let process_headers ctxt =
   (* At this point, the parsing context is set just past the array
      length, but the array parser starts by consuming the length.  So
      we need to rewind the context back to the beginning of the array
      length. *)
   let tctxt = P.rewind ctxt.type_context 4 in
-  let hdr_type = T.T_array (T.T_struct [ T.T_base T.B_byte; T.T_variant ]) in
-  let hdr_array, tctxt = P.parse_complete_type hdr_type tctxt in
+  let hdr_array, tctxt = P.parse_complete_type Protocol.hdr_array_type tctxt in
+  let headers = unpack_headers hdr_array in
+    (* The header "array length does not include any padding after the
+       last element"; however, "the header ends after its alignment
+       padding to an 8-boundary".  So, the latter alignment still
+       remains, and we perform it now. *)
+  let tctxt = P.check_and_align_context tctxt 8 0 Protocol.hdr_array_type in
     ctxt.type_context <- tctxt;
-    ctxt.bytes_remaining <- ctxt.payload_length;
-    ignore (hdr_array)
+    ctxt.headers <- headers;
+    (* We now prepare to read in the payload, if any. *)
+    ctxt.bytes_remaining <- ctxt.payload_length
 
 let rec parse_substring state str ofs len =
   match state with
@@ -189,12 +246,27 @@ let rec parse_substring state str ofs len =
         let tctxt = P.append_bytes ctxt.type_context str ofs bytes_to_consume in
           ctxt.type_context <- tctxt;
           ctxt.bytes_remaining <- ctxt.bytes_remaining - bytes_to_consume;
-          if ctxt.bytes_remaining = 0 then process_headers ctxt;
-          (* We need to check again to see if we expect a payload. *)
-          if ctxt.bytes_remaining = 0
-          then Parse_result (make_message ctxt, len - bytes_to_consume)
-          else (parse_substring (In_payload ctxt)
-                  str (ofs + bytes_to_consume) (len - bytes_to_consume))
+          if ctxt.bytes_remaining > 0
+          then Parse_incomplete (In_headers ctxt)
+          else begin
+            process_headers ctxt;
+            (* We need to check again to see if we expect a payload. *)
+            if ctxt.bytes_remaining = 0
+            then Parse_result (make_message ctxt, len - bytes_to_consume)
+            else (parse_substring (In_payload ctxt)
+                    str (ofs + bytes_to_consume) (len - bytes_to_consume))
+          end
     | In_payload ctxt ->
-        (* TODO *)
-        failwith "failure"
+        let bytes_to_consume = min len ctxt.bytes_remaining in
+        let tctxt = P.append_bytes ctxt.type_context str ofs bytes_to_consume in
+          ctxt.type_context <- tctxt;
+          ctxt.bytes_remaining <- ctxt.bytes_remaining - bytes_to_consume;
+          if ctxt.bytes_remaining > 0
+          then Parse_incomplete (In_payload ctxt)
+          else begin
+            (* TODO: lookup signature header.  if there is no
+               signature, then there is an error, since we have a
+               payload.  parse payload according to signature.
+            *)
+            Parse_result (make_message ctxt, len - bytes_to_consume)
+          end
