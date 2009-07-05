@@ -267,8 +267,16 @@ let process_fixed_header buffer =
        array struct element, since it starts at byte 16, and hence is
        already 8-aligned. *)
   let bytes_remaining, tctxt = P.take_uint32 tctxt in
+  let bytes_remaining = Int64.to_int bytes_remaining in
+    (* "The length of the header must be a multiple of 8 ... If the
+       header does not naturally end on an 8-byte boundary up to 7
+       bytes of nul-initialized alignment padding must be added."  The
+       current context is already 8-aligned, so we can use
+       bytes_remaining as the offset to compute the padding. *)
+  let header_padding = T.get_padding bytes_remaining 8 in
+  let bytes_remaining = bytes_remaining + header_padding in
     init_context tctxt msg_type (Int64.to_int payload_length) flags
-      protocol_version serial (Int64.to_int bytes_remaining)
+      protocol_version serial bytes_remaining
 
 let unpack_headers hdr_array =
   (* hdr_array is an array of byte-indexed dict_entries (structs); we
