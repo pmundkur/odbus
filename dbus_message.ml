@@ -15,6 +15,12 @@ type header =
   | Hdr_sender
   | Hdr_signature
 
+type msg_type =
+  | Msg_type_method_call
+  | Msg_type_method_return
+  | Msg_type_error
+  | Msg_type_signal
+
 type method_call = {
   method_call_flags : flag list;
   method_call_serial : int64;
@@ -65,6 +71,13 @@ type t =
   | Msg_method_return of method_return
   | Msg_error of error
   | Msg_signal of signal
+
+let get_type m =
+  match m with
+    | Msg_method_call _ -> Msg_type_method_call
+    | Msg_method_return _ -> Msg_type_method_return
+    | Msg_error _ -> Msg_type_error
+    | Msg_signal _ -> Msg_type_signal
 
 let get_flags m =
   match m with

@@ -4,15 +4,9 @@ module C = Dbus_conv
 module P = Dbus_type_parse
 module M = Dbus_message
 
-type msg_type =
-  | Msg_type_method_call
-  | Msg_type_method_return
-  | Msg_type_error
-  | Msg_type_signal
-
 type context = {
   mutable type_context : P.context;
-  mutable msg_type : msg_type;
+  mutable msg_type : M.msg_type;
   mutable payload_length : int;
   mutable flags : M.flag list;
   mutable protocol_version : char;
@@ -38,7 +32,7 @@ type error =
   | Unexpected_header_arity of M.header * (* received *) T.t list
   | Unexpected_header_type of M.header * (* received *) T.t * (* expected *) T.t
   | Missing_signature_header_for_payload
-  | Missing_required_header of msg_type * M.header
+  | Missing_required_header of M.msg_type * M.header
 
 exception Parse_error of error
 let raise_error e =
@@ -82,13 +76,13 @@ let parse_flags flags =
 let parse_msg_type mtype =
   let mtype = Char.code mtype in
   if mtype = Protocol.method_call_msg
-  then Msg_type_method_call
+  then M.Msg_type_method_call
   else if mtype = Protocol.method_return_msg
-  then Msg_type_method_return
+  then M.Msg_type_method_return
   else if mtype = Protocol.error_msg
-  then Msg_type_error
+  then M.Msg_type_error
   else if mtype = Protocol.signal_msg
-  then Msg_type_signal
+  then M.Msg_type_signal
   else raise_error (Unknown_msg_type mtype)
 
 let lookup_required_header msg_type hdr ctxt =
@@ -111,7 +105,7 @@ let lookup_optional_string_header hdr ctxt =
 *)
 
 let make_method_call_msg ctxt =
-  let lookup_required = lookup_required_header Msg_type_method_call in
+  let lookup_required = lookup_required_header M.Msg_type_method_call in
   let _, path_val = lookup_required M.Hdr_path ctxt in
   let _, member_val = lookup_required M.Hdr_member ctxt in
   let path = C.to_object_path path_val in
@@ -132,7 +126,7 @@ let make_method_call_msg ctxt =
     }
 
 let make_method_return_msg ctxt =
-  let lookup_required = lookup_required_header Msg_type_method_return in
+  let lookup_required = lookup_required_header M.Msg_type_method_return in
   let _, reply_serial_val = lookup_required M.Hdr_reply_serial ctxt in
   let reply_serial = C.to_uint32 reply_serial_val in
   let destination = lookup_optional_string_header M.Hdr_destination ctxt in
@@ -148,7 +142,7 @@ let make_method_return_msg ctxt =
     }
 
 let make_error_msg ctxt =
-  let lookup_required = lookup_required_header Msg_type_error in
+  let lookup_required = lookup_required_header M.Msg_type_error in
   let _, error_name_val = lookup_required M.Hdr_path ctxt in
   let error_name = C.to_string error_name_val in
   let _, reply_serial_val = lookup_required M.Hdr_reply_serial ctxt in
@@ -167,7 +161,7 @@ let make_error_msg ctxt =
     }
 
 let make_signal_msg ctxt =
-  let lookup_required = lookup_required_header Msg_type_signal in
+  let lookup_required = lookup_required_header M.Msg_type_signal in
   let _, path_val = lookup_required M.Hdr_path ctxt in
   let _, interface_val = lookup_required M.Hdr_interface ctxt in
   let _, member_val = lookup_required M.Hdr_member ctxt in
@@ -190,10 +184,10 @@ let make_signal_msg ctxt =
 
 let make_message ctxt =
   match ctxt.msg_type with
-    | Msg_type_method_call      -> make_method_call_msg ctxt
-    | Msg_type_method_return    -> make_method_return_msg ctxt
-    | Msg_type_error            -> make_error_msg ctxt
-    | Msg_type_signal           -> make_signal_msg ctxt
+    | M.Msg_type_method_call    -> make_method_call_msg ctxt
+    | M.Msg_type_method_return  -> make_method_return_msg ctxt
+    | M.Msg_type_error          -> make_error_msg ctxt
+    | M.Msg_type_signal         -> make_signal_msg ctxt
 
 (* "The signature of the header is:
    BYTE, BYTE, BYTE, BYTE, UINT32, UINT32, ARRAY of STRUCT of (BYTE,VARIANT)

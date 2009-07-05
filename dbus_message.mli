@@ -57,12 +57,19 @@ type signal = {
   signal_payload : Dbus_value.t list;
 }
 
+type msg_type =
+  | Msg_type_method_call
+  | Msg_type_method_return
+  | Msg_type_error
+  | Msg_type_signal
+
 type t =
   | Msg_method_call of method_call
   | Msg_method_return of method_return
   | Msg_error of error
   | Msg_signal of signal
 
+val get_type : t -> msg_type
 val get_flags : t -> flag list
 val get_serial : t -> int64
 val get_destination : t -> string option
