@@ -63,8 +63,15 @@ type t =
   | Msg_error of error
   | Msg_signal of signal
 
+val get_flags : t -> flag list
+val get_serial : t -> int64
+val get_destination : t -> string option
+val get_sender : t -> string option
+val get_signature : t -> Dbus_type.t list
+val get_payload : t -> Dbus_value.t list
+
 val method_call : ?flags:flag list -> serial:int64 -> ?destination:string
-  -> ?interface:string -> path:string -> member:string
+  -> ?interface:string -> ?path:string -> member:string
   -> signature: Dbus_type.t list -> payload:Dbus_value.t list
   -> t
 

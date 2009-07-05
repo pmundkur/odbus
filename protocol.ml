@@ -44,13 +44,13 @@ let signature_hdr = Char.chr 8
 let signature_hdr_type = T.T_base T.B_signature
 
 let all_headers = [
-  (path_hdr, path_hdr_type, M.Hdr_path);
-  (interface_hdr, interface_hdr_type, M.Hdr_interface);
-  (member_hdr, member_hdr_type, M.Hdr_member);
-  (error_name_hdr, error_name_hdr_type, M.Hdr_error_name);
-  (reply_serial_hdr, reply_serial_hdr_type, M.Hdr_reply_serial);
-  (destination_hdr, destination_hdr_type, M.Hdr_destination);
-  (sender_hdr, sender_hdr_type, M.Hdr_sender);
-  (signature_hdr, signature_hdr_type, M.Hdr_signature);
+  path_hdr, path_hdr_type, M.Hdr_path;
+  interface_hdr, interface_hdr_type, M.Hdr_interface;
+  member_hdr, member_hdr_type, M.Hdr_member;
+  error_name_hdr, error_name_hdr_type, M.Hdr_error_name;
+  reply_serial_hdr, reply_serial_hdr_type, M.Hdr_reply_serial;
+  destination_hdr, destination_hdr_type, M.Hdr_destination;
+  sender_hdr, sender_hdr_type, M.Hdr_sender;
+  signature_hdr, signature_hdr_type, M.Hdr_signature;
 ]
 

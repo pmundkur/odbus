@@ -66,8 +66,50 @@ type t =
   | Msg_error of error
   | Msg_signal of signal
 
+let get_flags m =
+  match m with
+    | Msg_method_call m -> m.method_call_flags
+    | Msg_method_return m -> m.method_return_flags
+    | Msg_error m -> m.error_flags
+    | Msg_signal m -> m.signal_flags
+
+let get_serial m =
+  match m with
+    | Msg_method_call m -> m.method_call_serial
+    | Msg_method_return m -> m.method_return_serial
+    | Msg_error m -> m.error_serial
+    | Msg_signal m -> m.signal_serial
+
+let get_destination m =
+  match m with
+    | Msg_method_call m -> m.method_call_destination
+    | Msg_method_return m -> m.method_return_destination
+    | Msg_error m -> m.error_destination
+    | Msg_signal m -> m.signal_destination
+
+let get_sender m =
+  match m with
+    | Msg_method_call m -> m.method_call_sender
+    | Msg_method_return m -> m.method_return_sender
+    | Msg_error m -> m.error_sender
+    | Msg_signal m -> m.signal_sender
+
+let get_signature m =
+  match m with
+    | Msg_method_call m -> m.method_call_signature
+    | Msg_method_return m -> m.method_return_signature
+    | Msg_error m -> m.error_signature
+    | Msg_signal m -> m.signal_signature
+
+let get_payload m =
+  match m with
+    | Msg_method_call m -> m.method_call_payload
+    | Msg_method_return m -> m.method_return_payload
+    | Msg_error m -> m.error_payload
+    | Msg_signal m -> m.signal_payload
+
 let method_call ?(flags=[]) ~serial ?destination
-    ?interface ~path ~member
+    ?interface ?(path="/") ~member
     ~signature ~payload
     =
   V.type_check_args signature payload;
