@@ -3,9 +3,6 @@
 module T = Dbus_type
 module M = Dbus_message
 
-(* the minimum size of a message *)
-let fixed_header_length = 16
-
 let little_endian = 'l'
 let big_endian = 'B'
 

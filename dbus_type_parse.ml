@@ -33,18 +33,10 @@ let init_context endian buffer ~offset:offset ~length:length =
   }
 
 let append_bytes ctxt str ~offset:ofs ~length:len =
-  let blen = String.length ctxt.buffer in
-  let append_offset = ctxt.offset + ctxt.length in
-  let new_blen = ref blen in
-    while !new_blen <  append_offset + len
-    do new_blen := 2 * !new_blen done;
-    let new_buffer = String.create !new_blen in
-      String.blit ctxt.buffer 0 new_buffer 0 append_offset;
-      String.blit str ofs ctxt.buffer append_offset len;
-      { ctxt with
-          buffer = new_buffer;
-          length = ctxt.length + len;
-      }
+  { ctxt with
+      buffer = ctxt.buffer ^ (String.sub str ofs len);
+      length = ctxt.length + len;
+  }
 
 let advance ctxt nbytes =
   assert (ctxt.length >= nbytes);

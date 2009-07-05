@@ -1,6 +1,5 @@
 (* Protocol constants. *)
 
-val fixed_header_length : int
 val little_endian : char
 val big_endian : char
 val method_call_msg : int
