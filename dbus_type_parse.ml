@@ -237,7 +237,7 @@ let parse_double ctxt =
   let dtype = T.T_base T.B_double in
   let align = T.alignment_of dtype in
   let ctxt = check_and_align_context ctxt ~align ~size:8 dtype in
-    (* TODO: Some Oo.black magic, or better yet, do it in C. *)
+    (* TODO: Do it in C, or better yet, with some Oo.black magic. *)
     V.V_double 0.0, advance ctxt 8
 
 let get_base_parser = function

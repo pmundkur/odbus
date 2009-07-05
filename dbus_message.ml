@@ -72,3 +72,68 @@ type t =
   | Msg_method_return of method_return
   | Msg_error of error
   | Msg_signal of signal
+
+let method_call ?(flags=[]) ~serial ?destination
+    ?interface ~path ~member
+    ~signature ~payload
+    =
+  V.type_check_args signature payload;
+  Msg_method_call {
+    method_call_flags = flags;
+    method_call_serial = serial;
+    method_call_path = path;
+    method_call_member = member;
+    method_call_interface = interface;
+    method_call_destination = destination;
+    method_call_sender = None;
+    method_call_signature = signature;
+    method_call_payload = payload;
+  }
+
+let method_return ?(flags=[]) ~serial ?destination
+    ~reply_serial
+    ~signature ~payload
+    =
+  V.type_check_args signature payload;
+  Msg_method_return {
+    method_return_flags = flags;
+    method_return_serial = serial;
+    method_return_reply_serial = reply_serial;
+    method_return_destination = destination;
+    method_return_sender = None;
+    method_return_signature = signature;
+    method_return_payload = payload;
+  }
+
+let error ?(flags=[]) ~serial ?destination
+    ~name ~reply_serial
+    ~signature ~payload
+    =
+  V.type_check_args signature payload;
+  Msg_error {
+    error_flags = flags;
+    error_serial = serial;
+    error_name = name;
+    error_reply_serial = reply_serial;
+    error_destination = destination;
+    error_sender = None;
+    error_signature = signature;
+    error_payload = payload;
+  }
+
+let signal ?(flags=[]) ~serial ?destination
+    ~interface ~path ~member
+    ~signature ~payload
+    =
+  V.type_check_args signature payload;
+  Msg_signal {
+    signal_flags = flags;
+    signal_serial = serial;
+    signal_path = path;
+    signal_interface = interface;
+    signal_member = member;
+    signal_destination = destination;
+    signal_sender = None;
+    signal_signature = signature;
+    signal_payload = payload;
+  }

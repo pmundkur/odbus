@@ -33,11 +33,15 @@ type string_error =
   | String_with_embedded_nul
   | String_not_nul_terminated
 
+type type_check_error =
+  | Type_mismatch of Dbus_type.t * t
+  | Type_arg_length_mismatch of Dbus_type.t list * t list
+
 type error =
   | Untyped_array
   | String_error of string_error
   | Object_path_error of object_path_error
-  | Type_mismatch of Dbus_type.t * t
+  | Type_check_error of type_check_error
 
 exception Invalid_value_error of error
 
@@ -53,3 +57,5 @@ val is_valid_object_path : string -> bool
 
 (* Type checker: raises Invalid_value_error Type_mismatch. *)
 val type_check : Dbus_type.t -> t -> unit
+val type_check_args : Dbus_type.t list -> t list -> unit
+

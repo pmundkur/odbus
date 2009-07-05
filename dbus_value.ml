@@ -27,15 +27,26 @@ type string_error =
   | String_with_embedded_nul
   | String_not_nul_terminated
 
+type type_check_error =
+  | Type_mismatch of T.t * t
+  | Type_arg_length_mismatch of T.t list * t list
+
 type error =
   | Untyped_array
   | String_error of string_error
   | Object_path_error of object_path_error
-  | Type_mismatch of T.t * t
+  | Type_check_error of type_check_error
 
 exception Invalid_value_error of error
 let raise_error e =
   raise (Invalid_value_error e)
+
+let raise_string_error e =
+  raise (Invalid_value_error (String_error e))
+let raise_object_path_error e =
+  raise (Invalid_value_error (Object_path_error e))
+let raise_type_check_error e =
+  raise (Invalid_value_error (Type_check_error e))
 
 let rec string_type_of = function
   | V_byte _        -> "byte"
@@ -63,7 +74,7 @@ let check_valid_string s =
   let len = String.length s in
     for i = 0 to len - 1 do
       if s.[i] = '\x00' then
-        raise_error (String_error String_with_embedded_nul)
+        raise_string_error String_with_embedded_nul
     done
 
 let is_valid_string s =
@@ -88,19 +99,19 @@ let check_valid_object_path s =
   let prev_was_slash = ref false in
     for i = 0 to slen do
       if not (is_valid_objectpath_char s.[i]) then
-        raise_error (Object_path_error OP_with_invalid_char);
+        raise_object_path_error OP_with_invalid_char;
       if not !prev_was_slash && s.[i] = '/' then
         prev_was_slash := true
       else if !prev_was_slash then
         if s.[i] = '/'
-        then raise_error (Object_path_error OP_with_consecutive_slashes)
+        then raise_object_path_error OP_with_consecutive_slashes
         else prev_was_slash := false;
     done;
     if slen > 0 then begin
       if s.[0] <> '/' then
-        raise_error (Object_path_error OP_with_non_slash_prefix);
+        raise_object_path_error OP_with_non_slash_prefix;
       if slen > 1 && s.[slen - 1] = '/' then
-        raise_error (Object_path_error OP_is_slash_terminated);
+        raise_object_path_error OP_is_slash_terminated;
     end
 
 let is_valid_object_path s =
@@ -123,14 +134,18 @@ let rec type_check t v =
         -> ()
     | T.T_variant, V_variant (tl, vl) ->
         (* TODO: In what cases would we get mismatched lengths? *)
-        List.iter2 type_check tl vl
+        type_check_args tl vl
     | T.T_array t, V_array va ->
         Array.iter (type_check t) va
     | T.T_struct tl, V_struct vl ->
         (* TODO: In what cases would we get mismatched lengths? *)
-        List.iter2 type_check tl vl
+        type_check_args tl vl
     | t, v ->
-        raise_error (Type_mismatch (t, v))
+        raise_type_check_error (Type_mismatch (t, v))
+and type_check_args tl vl =
+  if List.length tl <> List.length vl
+  then raise_type_check_error (Type_arg_length_mismatch (tl, vl));
+  List.iter2 type_check tl vl
 
 (* This function cannot really be used, since we can't type 0-length
    arrays.  Instead, we're limited to using string_type_of. *)

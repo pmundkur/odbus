@@ -62,3 +62,23 @@ type t =
   | Msg_method_return of method_return
   | Msg_error of error
   | Msg_signal of signal
+
+val method_call : ?flags:flag list -> serial:int64 -> ?destination:string
+  -> ?interface:string -> path:string -> member:string
+  -> signature: Dbus_type.t list -> payload:Dbus_value.t list
+  -> t
+
+val method_return : ?flags:flag list -> serial:int64 -> ?destination:string
+  -> reply_serial:int64
+  -> signature: Dbus_type.t list -> payload:Dbus_value.t list
+  -> t
+
+val error : ?flags:flag list -> serial:int64 -> ?destination:string
+  -> name:string -> reply_serial:int64
+  -> signature: Dbus_type.t list -> payload:Dbus_value.t list
+  -> t
+
+val signal : ?flags:flag list -> serial:int64 -> ?destination:string
+  -> interface:string -> path:string -> member:string
+  -> signature: Dbus_type.t list -> payload:Dbus_value.t list
+  -> t
