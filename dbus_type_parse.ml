@@ -24,7 +24,7 @@ type context = {
   length : int;
 }
 
-let init_context endian buffer offset length =
+let init_context endian buffer ~offset:offset ~length:length =
   {
     endian = endian;
     buffer = buffer;
@@ -32,7 +32,7 @@ let init_context endian buffer offset length =
     length = length;
   }
 
-let append_bytes ctxt str ofs len =
+let append_bytes ctxt str ~offset:ofs ~length:len =
   let blen = String.length ctxt.buffer in
   let append_offset = ctxt.offset + ctxt.length in
   let new_blen = ref blen in
@@ -60,15 +60,15 @@ let rewind ctxt nbytes =
       length = ctxt.length + nbytes;
   }
 
-let check_and_align_context ctxt alignment size dtype =
-  let padding = T.get_padding ctxt.offset alignment in
+let check_and_align_context ctxt ~align:align ~size:size dtype =
+  let padding = T.get_padding ~offset:ctxt.offset ~align in
     if ctxt.length < size + padding then
       raise_error (Insufficient_data dtype);
     advance ctxt padding
 
 let take_byte ?(dtype=T.T_base T.B_byte) ctxt =
   let align = T.alignment_of (T.T_base T.B_byte) in
-  let ctxt = check_and_align_context ctxt align 1 dtype in
+  let ctxt = check_and_align_context ctxt ~align ~size:1 dtype in
   let b = ctxt.buffer.[ctxt.offset] in
     b, advance ctxt 1
 
@@ -112,7 +112,7 @@ let take_i16 sign ctxt =
     if sign then to_int16, (T.T_base T.B_int16)
     else to_uint16, (T.T_base T.B_uint16) in
   let align = T.alignment_of dtype in
-  let ctxt = check_and_align_context ctxt align 2 dtype in
+  let ctxt = check_and_align_context ctxt ~align ~size:2 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
     to_fn ctxt.endian b0 b1, advance ctxt 2
@@ -130,7 +130,7 @@ let parse_uint16 ctxt =
 
 let take_uint32 ?(dtype=T.T_base T.B_uint32) ctxt =
   let align = T.alignment_of (T.T_base T.B_int32) in
-  let ctxt = check_and_align_context ctxt align 4 dtype in
+  let ctxt = check_and_align_context ctxt ~align ~size:4 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
   let b2 = Char.code ctxt.buffer.[ctxt.offset + 2] in
@@ -146,7 +146,7 @@ let parse_uint32 ctxt =
 let parse_int32 ctxt =
   let dtype = T.T_base T.B_int32 in
   let align = T.alignment_of dtype in
-  let ctxt = check_and_align_context ctxt align 4 dtype in
+  let ctxt = check_and_align_context ctxt ~align ~size:4 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
   let b2 = Char.code ctxt.buffer.[ctxt.offset + 2] in
@@ -168,7 +168,7 @@ let parse_boolean ctxt =
 (* TODO: check int64 (and other!) sanity! *)
 let take_uint64 ?(dtype=T.T_base T.B_uint64) ctxt =
   let align = T.alignment_of (T.T_base T.B_int64) in
-  let ctxt = check_and_align_context ctxt align 8 dtype in
+  let ctxt = check_and_align_context ctxt ~align ~size:8 dtype in
   let b0 = Char.code ctxt.buffer.[ctxt.offset] in
   let b1 = Char.code ctxt.buffer.[ctxt.offset + 1] in
   let b2 = Char.code ctxt.buffer.[ctxt.offset + 2] in
@@ -202,7 +202,7 @@ let take_string ?(dtype=T.T_base T.B_string) ctxt =
   let len, ctxt = take_uint32 ~dtype ctxt in
   let len = Int64.to_int len in
   (* the below call is only to check the length, since we're already aligned. *)
-  let ctxt = check_and_align_context ctxt 1 (len + 1) dtype in
+  let ctxt = check_and_align_context ctxt ~align:1 ~size:(len + 1) dtype in
   let s = String.sub ctxt.buffer ctxt.offset len in
     check_valid_string ~dtype s;
     if ctxt.buffer.[ctxt.offset + len] <> '\x00' then
@@ -236,7 +236,7 @@ let parse_signature ctxt =
 let parse_double ctxt =
   let dtype = T.T_base T.B_double in
   let align = T.alignment_of dtype in
-  let ctxt = check_and_align_context ctxt align 8 dtype in
+  let ctxt = check_and_align_context ctxt ~align ~size:8 dtype in
     (* TODO: Some Oo.black magic, or better yet, do it in C. *)
     V.V_double 0.0, advance ctxt 8
 
@@ -267,7 +267,7 @@ let rec parse_complete_type dtype ctxt =
         let len, ctxt = take_uint32 ~dtype ctxt in
         let len = Int64.to_int len in
         let align = T.alignment_of t in
-        let ctxt = check_and_align_context ctxt align len dtype in
+        let ctxt = check_and_align_context ctxt ~align ~size:len dtype in
         let end_offset = ctxt.offset + len in
         let rec iter acc ctxt =
           if ctxt.offset < end_offset then
@@ -281,7 +281,7 @@ let rec parse_complete_type dtype ctxt =
         let align = T.alignment_of dtype in
         (* the below call only performs alignment; the length check
            is performed during the loop. *)
-        let ctxt = check_and_align_context ctxt align 0 dtype in
+        let ctxt = check_and_align_context ctxt ~align ~size:0 dtype in
         let vl, ctxt = parse_type_list tl ctxt in
           V.V_array (Array.of_list (List.rev vl)), ctxt
 

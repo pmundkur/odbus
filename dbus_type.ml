@@ -75,7 +75,7 @@ let alignment_of = function
   | T_array _ ->            4
   | T_struct _ ->           8
 
-let get_padding current_offset alignment =
+let get_padding ~offset:current_offset ~align:alignment =
   alignment - (current_offset mod alignment)
 
 type endian =

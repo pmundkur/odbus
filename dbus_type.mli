@@ -29,7 +29,7 @@ val is_basic_type : t -> bool
 val is_container_type : t -> bool
 
 val alignment_of : t -> int
-val get_padding : int -> int -> int
+val get_padding : offset:int -> align:int -> int
 
 type sig_error =
   | Sig_incomplete

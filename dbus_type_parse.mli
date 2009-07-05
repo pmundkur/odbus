@@ -19,12 +19,12 @@ type context =
       length : int;
     }
 
-val init_context : Dbus_type.endian -> string -> int -> int -> context
+val init_context : Dbus_type.endian -> string -> offset:int -> length:int -> context
 
-val append_bytes : context -> string -> int -> int -> context
+val append_bytes : context -> string -> offset:int -> length:int -> context
 val advance : context -> int -> context
 val rewind : context -> int -> context
-val check_and_align_context : context -> (* alignment *) int -> (* size *) int -> Dbus_type.t -> context
+val check_and_align_context : context -> align:int -> size:int -> Dbus_type.t -> context
 
 val take_byte : ?dtype:Dbus_type.t -> context -> char * context
 val parse_byte : context -> Dbus_value.t * context

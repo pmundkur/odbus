@@ -253,7 +253,7 @@ let process_fixed_header buffer =
     if buffer.[0] = Protocol.little_endian then T.Little_endian
     else if buffer.[0] = Protocol.big_endian then T.Big_endian
     else raise_error Invalid_endian in
-  let tctxt = P.init_context endian buffer 1 (Protocol.fixed_header_length - 1) in
+  let tctxt = P.init_context endian buffer ~offset:1 ~length:(Protocol.fixed_header_length - 1) in
   let msg_type, tctxt = P.take_byte tctxt in
   let msg_type = parse_msg_type msg_type in
   let flags, tctxt = P.take_byte tctxt in
@@ -273,7 +273,7 @@ let process_fixed_header buffer =
        bytes of nul-initialized alignment padding must be added."  The
        current context is already 8-aligned, so we can use
        bytes_remaining as the offset to compute the padding. *)
-  let header_padding = T.get_padding bytes_remaining 8 in
+  let header_padding = T.get_padding ~offset:bytes_remaining ~align:8 in
   let bytes_remaining = bytes_remaining + header_padding in
     init_context tctxt msg_type (Int64.to_int payload_length) flags
       protocol_version serial bytes_remaining
@@ -325,7 +325,7 @@ let process_headers ctxt =
        last element"; however, "the header ends after its alignment
        padding to an 8-boundary".  So, the latter alignment still
        remains, and we perform it now. *)
-  let tctxt = P.check_and_align_context tctxt 8 0 Protocol.hdr_array_type in
+  let tctxt = P.check_and_align_context tctxt ~align:8 ~size:0 Protocol.hdr_array_type in
     ctxt.type_context <- tctxt;
     ctxt.headers <- headers;
     (* We now prepare to read in the payload, if any. *)
