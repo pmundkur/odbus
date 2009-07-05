@@ -108,6 +108,39 @@ let get_payload m =
     | Msg_error m -> m.error_payload
     | Msg_signal m -> m.signal_payload
 
+let get_headers m =
+  let add_destination hdrs =
+    match get_destination m with
+      | None   -> hdrs
+      | Some d -> (Hdr_destination, (T.T_base T.B_string, V.V_string d)) :: hdrs in
+  let add_sender hdrs =
+    match get_sender m with
+      | None   -> hdrs
+      | Some s -> (Hdr_sender, (T.T_base T.B_string, V.V_string s)) :: hdrs in
+  let add_signature hdrs =
+    match get_signature m with
+      | [] -> hdrs
+      | tl -> (Hdr_signature, (T.T_base T.B_signature, V.V_signature tl)) :: hdrs in
+  let required_headers =
+    match m with
+      | Msg_method_call mc -> [
+          Hdr_path, (T.T_base T.B_object_path, V.V_object_path mc.method_call_path);
+          Hdr_member, (T.T_base T.B_string, V.V_string mc.method_call_member);
+        ]
+      | Msg_method_return mr -> [
+          Hdr_reply_serial, (T.T_base T.B_uint32, V.V_uint32 mr.method_return_reply_serial);
+        ]
+      | Msg_error e -> [
+          Hdr_error_name, (T.T_base T.B_string, V.V_string e.error_name);
+          Hdr_reply_serial, (T.T_base T.B_uint32, V.V_uint32 e.error_reply_serial);
+        ]
+      | Msg_signal s -> [
+          Hdr_path, (T.T_base T.B_object_path, V.V_object_path s.signal_path);
+          Hdr_interface, (T.T_base T.B_string, V.V_string s.signal_interface);
+        ]
+  in
+    add_signature (add_sender (add_destination required_headers))
+
 let method_call ?(flags=[]) ~serial ?destination
     ?interface ?(path="/") ~member
     ~signature ~payload

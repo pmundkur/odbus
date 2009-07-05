@@ -69,6 +69,7 @@ val get_destination : t -> string option
 val get_sender : t -> string option
 val get_signature : t -> Dbus_type.t list
 val get_payload : t -> Dbus_value.t list
+val get_headers : t -> (header * (Dbus_type.t * Dbus_value.t)) list
 
 val method_call : ?flags:flag list -> serial:int64 -> ?destination:string
   -> ?interface:string -> ?path:string -> member:string
