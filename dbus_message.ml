@@ -1,10 +1,3 @@
-(* The signature of the header is:
-   BYTE, BYTE, BYTE, BYTE, UINT32, UINT32, ARRAY of STRUCT of (BYTE,VARIANT)
-   where the array of headers has a UINT32 length followed immediately
-   (i.e. without padding) by the headers since the struct is already
-   aligned on a 8-byte boundary.
-*)
-
 module T = Dbus_type
 module V = Dbus_value
 
