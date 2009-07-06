@@ -17,6 +17,17 @@ exception Marshal_error of error
 let raise_error e =
   raise (Marshal_error e)
 
+let init_context endian buffer ~offset ~length =
+  {
+    endian = endian;
+    buffer = buffer;
+    offset = offset;
+    length = length;
+  }
+
+let get_current_offset ctxt =
+  ctxt.offset
+
 let rec compute_marshaled_size ~offset t v =
   V.type_check t v;
   let padding = T.get_padding ~offset ~align:(T.alignment_of t) in
@@ -63,6 +74,12 @@ let rec compute_marshaled_size ~offset t v =
     | _ ->
         (* We should never reach here after the type_check in the first line. *)
         assert false
+
+let compute_payload_marshaled_size ~offset tlist vlist =
+  V.type_check_args tlist vlist;
+  List.fold_left2 (fun offset t v ->
+                     offset + compute_marshaled_size ~offset t v
+                  ) offset tlist vlist
 
 let advance ctxt nbytes =
   assert (ctxt.length >= nbytes);
@@ -278,3 +295,8 @@ let rec marshal_complete_type ctxt t v =
         (* We should never reach here after the type_check in the first line. *)
         assert false
 
+let marshal_payload ctxt tlist vlist =
+  V.type_check_args tlist vlist;
+  List.fold_left2 (fun ctxt t v ->
+                     marshal_complete_type ctxt t v
+                  ) ctxt tlist vlist

@@ -11,6 +11,7 @@ DBUS_FILES[] =
 	dbus_type_marshal
 	dbus_message
 	dbus_message_parse
+	dbus_message_marshal
 	dbus_conv
 	dbus_auth
 	protocol

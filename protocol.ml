@@ -11,10 +11,12 @@ let method_return_msg = 2
 let error_msg = 3
 let signal_msg = 4
 
-let hdr_array_type = T.T_array (T.T_struct [ T.T_base T.B_byte; T.T_variant ])
-
 let no_reply_expected_flag = 0x1
 let no_auto_start_flag = 0x2
+
+let protocol_version = Char.chr 1
+
+let hdr_array_type = T.T_array (T.T_struct [ T.T_base T.B_byte; T.T_variant ])
 
 let path_hdr = Char.chr 1
 let path_hdr_type = T.T_base T.B_object_path
