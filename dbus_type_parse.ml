@@ -53,9 +53,9 @@ let rewind ctxt nbytes =
       length = ctxt.length + nbytes;
   }
 
-let check_and_align_context ctxt ~align:align ~size:size dtype =
+let check_and_align_context ctxt ~align ~size dtype =
   let padding = T.get_padding ~offset:ctxt.offset ~align in
-    if ctxt.length < size + padding then
+    if ctxt.length < padding + size then
       raise_error (Insufficient_data dtype);
     advance ctxt padding
 
@@ -69,16 +69,16 @@ let parse_byte ctxt =
   let b, ctxt = take_byte ctxt in
     V.V_byte b, ctxt
 
-let to_uint16 endian b0 b1 =
-  match endian with
-    | T.Little_endian -> b0 + (b1 lsl 8)
-    | T.Big_endian -> b1 + (b0 lsl 8)
-
 let to_int16 endian b0 b1 =
   let i, sign = match endian with
     | T.Little_endian -> b0 + (b1 lsl 8), b1 lsr 7
     | T.Big_endian -> b1 + (b0 lsl 8), b0 lsr 7
   in if sign = 0 then i else (i land 0x7fff) - 0x8000
+
+let to_uint16 endian b0 b1 =
+  match endian with
+    | T.Little_endian -> b0 + (b1 lsl 8)
+    | T.Big_endian -> b1 + (b0 lsl 8)
 
 let to_int32 endian q0 q1 =
   let module I = Int32 in
@@ -132,10 +132,6 @@ let take_uint32 ?(dtype=T.T_base T.B_uint32) ctxt =
   let q1 = to_uint16 ctxt.endian b2 b3 in
     to_uint32 ctxt.endian q0 q1, advance ctxt 4
 
-let parse_uint32 ctxt =
-  let i, ctxt = take_uint32 ctxt in
-    V.V_uint32 i, ctxt
-
 let parse_int32 ctxt =
   let dtype = T.T_base T.B_int32 in
   let align = T.alignment_of dtype in
@@ -147,6 +143,10 @@ let parse_int32 ctxt =
   let q0 = to_uint16 ctxt.endian b0 b1 in
   let q1 = to_uint16 ctxt.endian b2 b3 in
     V.V_int32 (to_int32 ctxt.endian q0 q1), advance ctxt 4
+
+let parse_uint32 ctxt =
+  let i, ctxt = take_uint32 ctxt in
+    V.V_uint32 i, ctxt
 
 let parse_boolean ctxt =
   let dtype = T.T_base T.B_boolean in
@@ -178,13 +178,13 @@ let take_uint64 ?(dtype=T.T_base T.B_uint64) ctxt =
   let u1 = to_uint32 ctxt.endian q2 q3 in
     to_uint64 ctxt.endian u0 u1, advance ctxt 8
 
-let parse_uint64 ctxt =
-  let u, ctxt = take_uint64 ctxt in
-    V.V_uint64 u, ctxt
-
 let parse_int64 ctxt =
   let i, ctxt = take_uint64 ~dtype:(T.T_base T.B_int64) ctxt in
     V.V_int64 i, ctxt
+
+let parse_uint64 ctxt =
+  let u, ctxt = take_uint64 ctxt in
+    V.V_uint64 u, ctxt
 
 let check_valid_string ?(dtype=T.T_base T.B_string) s =
   try V.check_valid_string s
