@@ -5,12 +5,13 @@ module P = Dbus_type_parse
 module M = Dbus_message
 
 type fixed_header = {
-  buffer : string;
+  fixed_buffer : string;
   start_offset : int;
   mutable offset: int;
 }
 
 type context = {
+  buffer : Buffer.t;
   mutable type_context : P.context;
   mutable msg_type : M.msg_type;
   mutable payload_length : int;
@@ -60,7 +61,7 @@ let init_state start_offset =
   let length = length + (T.get_padding ~offset:length ~align:8) in
   let buffer = String.make length '\x00' in
     In_fixed_header {
-      buffer = buffer;
+      fixed_buffer = buffer;
       start_offset = start_offset;
       offset = start_offset;
     }
@@ -68,6 +69,7 @@ let init_state start_offset =
 let init_context type_context msg_type payload_length flags protocol_version
     serial bytes_remaining =
   {
+    buffer = Buffer.create bytes_remaining;
     type_context = type_context;
     msg_type = msg_type;
     payload_length = payload_length;
@@ -213,14 +215,14 @@ let make_message ctxt =
 
 (* See the documentation for init_state. *)
 let process_fixed_header fh =
-  let endian = fh.buffer.[fh.start_offset] in
+  let endian = fh.fixed_buffer.[fh.start_offset] in
   let endian =
     if endian = Protocol.little_endian then T.Little_endian
     else if endian = Protocol.big_endian then T.Big_endian
     else raise_error Invalid_endian in
-  let tctxt = (P.init_context endian fh.buffer
+  let tctxt = (P.init_context endian fh.fixed_buffer
                  ~offset:(fh.start_offset + 1)
-                 ~length:((String.length fh.buffer) - fh.start_offset - 1)) in
+                 ~length:((String.length fh.fixed_buffer) - fh.start_offset - 1)) in
   let msg_type, tctxt = P.take_byte tctxt in
   let msg_type = parse_msg_type msg_type in
   let flags, tctxt = P.take_byte tctxt in
@@ -272,9 +274,10 @@ let unpack_headers hdr_array =
   in List.concat headers
 
 let process_headers ctxt =
+  let tctxt = (P.append_bytes ctxt.type_context
+                 (Buffer.contents ctxt.buffer) 0 (Buffer.length ctxt.buffer)) in
   (* At this point, the parsing context is where process_fixed_header
      left it, i.e. ready to parse the array. *)
-  let tctxt = ctxt.type_context in
   let hdr_array, tctxt = P.parse_complete_type Protocol.hdr_array_type tctxt in
   let headers = unpack_headers hdr_array in
     (* The header "array length does not include any padding after the
@@ -307,9 +310,9 @@ let process_payload ctxt =
 let rec parse_substring state str ofs len =
   match state with
     | In_fixed_header fh ->
-        let fh_bytes_remaining = (String.length fh.buffer) - fh.offset in
+        let fh_bytes_remaining = (String.length fh.fixed_buffer) - fh.offset in
         let bytes_to_consume = min len fh_bytes_remaining in
-          String.blit str ofs fh.buffer fh.offset bytes_to_consume;
+          String.blit str ofs fh.fixed_buffer fh.offset bytes_to_consume;
           fh.offset <- fh.offset + bytes_to_consume;
           if bytes_to_consume < fh_bytes_remaining
             then Parse_incomplete (In_fixed_header fh)
@@ -322,8 +325,7 @@ let rec parse_substring state str ofs len =
             end
     | In_headers ctxt ->
         let bytes_to_consume = min len ctxt.bytes_remaining in
-        let tctxt = P.append_bytes ctxt.type_context str ofs bytes_to_consume in
-          ctxt.type_context <- tctxt;
+          Buffer.add_substring ctxt.buffer str ofs bytes_to_consume;
           ctxt.bytes_remaining <- ctxt.bytes_remaining - bytes_to_consume;
           if ctxt.bytes_remaining > 0
           then Parse_incomplete (In_headers ctxt)
