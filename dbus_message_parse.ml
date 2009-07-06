@@ -230,9 +230,9 @@ let process_fixed_header fh =
   let tctxt = P.check_and_align_context tctxt ~align:4 ~size:(3 * 4) (T.T_base T.B_uint32) in
   let payload_length, tctxt = P.take_uint32 tctxt in
   let serial, tctxt = P.take_uint32 tctxt in
-    (* The remaining bytes are the bytes in the array data.  We won't
-       update our type_parsing context 'tctxt' now; since we need it
-       to parse the array once we get the array data. *)
+    (* The remaining bytes are the bytes in the header array data.  We
+       won't update our type_parsing context 'tctxt' now; since we
+       need it to parse the array once we get the array data. *)
   let bytes_remaining, _ = P.take_uint32 tctxt in
     init_context tctxt msg_type (Int64.to_int payload_length) flags
       protocol_version serial (Int64.to_int bytes_remaining)

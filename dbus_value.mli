@@ -1,7 +1,8 @@
 (* We use a universal type representation.  This breaks type-safety by
    allowing heterogenous arrays, which violate the D-Bus type system.
-   We need to regain safety by using automated converters instead of
-   constructing values manually.
+   We ensure safety by using the type_check function (in this module)
+   wherever possible.  The use of automated converters instead of
+   constructing values manually would also help.
 *)
 
 type t =
@@ -58,4 +59,3 @@ val is_valid_object_path : string -> bool
 (* Type checker: raises Invalid_value_error Type_mismatch. *)
 val type_check : Dbus_type.t -> t -> unit
 val type_check_args : Dbus_type.t list -> t list -> unit
-
