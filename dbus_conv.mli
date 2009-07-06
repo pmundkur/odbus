@@ -47,5 +47,5 @@ val of_array : Dbus_value.t array -> Dbus_value.t
 val to_struct : ?unpack_variants:bool -> Dbus_value.t -> Dbus_value.t list
 val of_struct : Dbus_value.t list -> Dbus_value.t
 
-val to_variant : Dbus_value.t -> Dbus_type.t list * Dbus_value.t list
-val of_variant : Dbus_type.t list * Dbus_value.t list -> Dbus_value.t
+val to_variant : Dbus_value.t -> Dbus_type.t * Dbus_value.t
+val of_variant : Dbus_type.t * Dbus_value.t -> Dbus_value.t

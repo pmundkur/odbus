@@ -7,6 +7,7 @@ type inv_reason =
   | Inv_string of V.string_error
   | Inv_object_path of V.object_path_error
   | Inv_signature of T.sig_error
+  | Inv_variant_signature of V.t
   | Inv_array_length
 
 type error =
@@ -253,8 +254,13 @@ let rec parse_complete_type dtype ctxt =
     | T.T_variant ->
         let s, ctxt = parse_signature ctxt in
         let tl = C.to_signature s in
-        let vl, ctxt = parse_type_list tl ctxt in
-          V.V_variant (tl, vl), ctxt
+        let t = (match tl with
+                   | [ t ] -> t
+                   | _     ->
+                       raise_error (Invalid_value (dtype, Inv_variant_signature s))
+                ) in
+        let v, ctxt = parse_complete_type t ctxt in
+          V.V_variant (t, v), ctxt
     | T.T_array t ->
         let len, ctxt = take_uint32 ~dtype ctxt in
         let len = Int64.to_int len in

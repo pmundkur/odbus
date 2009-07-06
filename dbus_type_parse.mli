@@ -3,6 +3,7 @@ type inv_reason =
   | Inv_string of Dbus_value.string_error
   | Inv_object_path of Dbus_value.object_path_error
   | Inv_signature of Dbus_type.sig_error
+  | Inv_variant_signature of Dbus_value.t
   | Inv_array_length
 
 type error =

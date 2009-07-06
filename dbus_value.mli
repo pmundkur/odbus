@@ -19,7 +19,7 @@ type t =
   | V_signature of Dbus_type.t list
   | V_array of t array
   | V_struct of t list
-  | V_variant of Dbus_type.t list * t list
+  | V_variant of Dbus_type.t * t
 
 (* Kinds of invalid errors. *)
 

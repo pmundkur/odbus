@@ -36,7 +36,6 @@ type parse_result =
 type error =
   | Invalid_endian
   | Unknown_msg_type of int
-  | Unexpected_header_arity of M.header * (* received *) T.t list
   | Unexpected_header_type of M.header * (* received *) T.t * (* expected *) T.t
   | Missing_signature_header_for_payload
   | Missing_required_header of M.msg_type * M.header
@@ -255,20 +254,11 @@ let unpack_headers hdr_array =
   let headers =
     List.map (fun (hdr_code, hdr_type, hdr) ->
                 try
-                  let htlist, hv = List.assoc hdr_code assoc in
-                  (* The standard headers are single base values. *)
-                    match htlist with
-                      | [ ht ] ->
-                          (* Our variant parser should guarantee that
-                             the variant signature matches the value;
-                             and so we can safely List.hd below. *)
-                          assert (List.length hv = 1);
-                          if ht <> hdr_type
-                            (* ht is an unexpected type for standard header *)
-                          then raise_error (Unexpected_header_type (hdr, ht, hdr_type))
-                          else [ hdr, (hdr_type, (List.hd hv)) ]
-                      | _ ->
-                          raise_error (Unexpected_header_arity (hdr, htlist))
+                  let ht, hv = List.assoc hdr_code assoc in
+                    if ht <> hdr_type
+                      (* ht is an unexpected type for standard header *)
+                    then raise_error (Unexpected_header_type (hdr, ht, hdr_type))
+                    else [ hdr, (hdr_type, hv) ]
                 with Not_found -> []
              ) Protocol.all_headers
   in List.concat headers

@@ -15,7 +15,7 @@ type t =
   | V_signature of T.t list
   | V_array of t array
   | V_struct of t list
-  | V_variant of T.t list * t list
+  | V_variant of T.t * t
 
 type object_path_error =
   | OP_with_invalid_char
@@ -132,9 +132,8 @@ let rec type_check t v =
     | T.T_base T.B_object_path, V_object_path _
     | T.T_base T.B_signature, V_signature _
         -> ()
-    | T.T_variant, V_variant (tl, vl) ->
-        (* TODO: In what cases would we get mismatched lengths? *)
-        type_check_args tl vl
+    | T.T_variant, V_variant (t, v) ->
+        type_check t v
     | T.T_array t, V_array va ->
         Array.iter (type_check t) va
     | T.T_struct tl, V_struct vl ->
