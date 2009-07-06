@@ -8,6 +8,7 @@ DBUS_FILES[] =
 	dbus_type
 	dbus_value
 	dbus_type_parse
+	dbus_type_marshal
 	dbus_message
 	dbus_message_parse
 	dbus_conv
