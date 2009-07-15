@@ -2,7 +2,11 @@ CLEAN = rm -f *.annot *.cmi *.cmo *.cmxa *.cmx *.o *.a *.opt
 
 BYTE_ENABLED = true
 
-OCAMLFLAGS += -dtypes
+XENCLIENT_TOOLSTACK_TOPDIR = /home/prashanth/xenclient/build/repo/xenclient-toolstack
+EVENTLOOP_DIR = $(XENCLIENT_TOOLSTACK_TOPDIR)/libs/stdext
+ASYNC_CONN_DIR = $(XENCLIENT_TOOLSTACK_TOPDIR)/common
+
+OCAMLFLAGS += -dtypes -I $(EVENTLOOP_DIR) -I $(ASYNC_CONN_DIR)
 
 DBUS_FILES[] =
 	dbus_type
@@ -16,6 +20,7 @@ DBUS_FILES[] =
 	dbus_auth
 	protocol
 	utils
+	dbus_connection
 
 LIB = dbus
 DBUS_LIB = $(OCamlLibrary $(LIB), $(DBUS_FILES))
