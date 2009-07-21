@@ -1,3 +1,4 @@
+module T = Dbus_type
 module M = Dbus_message
 module A = Dbus_auth
 module C = Async_conn
@@ -5,7 +6,10 @@ module P = Dbus_message_parse
 module MM = Dbus_message_marshal
 
 type error =
+  | Connection_pending
+  | Authentication_pending
   | Authentication_failed
+
 
 exception Error of error
 let raise_error e =
@@ -117,15 +121,21 @@ let disconnect conn =
   (* TODO *)
   conn.state <- Disconnected
 
-(*
 let send conn msg =
-  let offset = conn.state.write_offset in
-  let marshaled_size = MM.compute_marshaled_size offset m in
-  let buf_len = offset + marshaled_size in
-  let buffer = String.make buf_len '\000' in
-  let state_update = { conn.state with
-                         offset = (offset + marshaled_size) mod 8
-                     } in
-    MM.marshal_message ~offset T.Little_Endian buffer buf_len msg;
-    conn.state <- state_update;
-*)
+  match conn.state with
+    | Connecting ->
+        raise_error Connection_pending
+    | Authenticating _ ->
+        raise_error Authentication_pending
+    | Connected cstate ->
+        let stream_offset = cstate.write_offset in
+        let marshaled_size = MM.compute_marshaled_size stream_offset msg in
+        let buffer = String.make marshaled_size '\000' in
+        let marshaled_bytes = MM.marshal_message ~stream_offset T.Little_endian buffer ~offset:0 ~length:marshaled_size msg in
+          assert (marshaled_size = marshaled_bytes);
+          conn.state <- Connected { cstate with
+                                      write_offset = (stream_offset + marshaled_size) mod 8
+                                  };
+          C.send conn.conn buffer
+    | Disconnected ->
+        assert false
