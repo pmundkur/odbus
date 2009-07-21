@@ -174,3 +174,29 @@ let rec type_of = function
                done;
                T.T_array t
       )
+
+let rec pr_value ff v =
+  match v with
+    | V_byte b        -> Format.fprintf ff "%d" (Char.code b)
+    | V_boolean b     -> Format.fprintf ff "%s" (if b then "true" else "false")
+    | V_int16 i       -> Format.fprintf ff "%x(%d)" i i
+    | V_uint16 i      -> Format.fprintf ff "%x(%d)" i i
+    | V_int32 i       -> Format.fprintf ff "%lx(%ld)" i i
+    | V_uint32 i      -> Format.fprintf ff "%Lx(%Ld)" i i
+    | V_int64 i       -> Format.fprintf ff "%Lx(%Ld)" i i
+    | V_uint64 i      -> Format.fprintf ff "%Lx(%Ld)" i i
+    | V_double d      -> Format.fprintf ff "%f" d
+    | V_string s      -> Format.fprintf ff "%s" s
+    | V_object_path o -> Format.fprintf ff "%s" o
+    | V_signature tl  -> Format.fprintf ff "%s" (T.signature_of_types tl)
+    | V_struct vl     ->
+        Format.fprintf ff "@[<v 2>(@,";
+        List.iter (fun v -> pr_value ff v; Format.fprintf ff "@,") vl;
+        Format.fprintf ff ")@]@,"
+    | V_variant (t, v) ->
+        Format.fprintf ff "%s : " (T.to_string t);
+        pr_value ff v
+    | V_array va      ->
+        Format.fprintf ff "@[<v 2>[@,";
+        Array.iter (fun v -> pr_value ff v; Format.fprintf ff "@,") va;
+        Format.fprintf ff "]@]@,"
