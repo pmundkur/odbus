@@ -69,6 +69,8 @@ type t =
   | Msg_error of error
   | Msg_signal of signal
 
+(* Accessors *)
+
 val get_type : t -> msg_type
 val get_flags : t -> flag list
 val get_serial : t -> int64
@@ -77,6 +79,8 @@ val get_sender : t -> string option
 val get_signature : t -> Dbus_type.t list
 val get_payload : t -> Dbus_value.t list
 val get_headers : t -> (header * (Dbus_type.t * Dbus_value.t)) list
+
+(* Constructors *)
 
 val method_call : ?flags:flag list -> serial:int64 -> ?destination:string
   -> ?interface:string -> ?path:string -> member:string
@@ -97,3 +101,6 @@ val signal : ?flags:flag list -> serial:int64 -> ?destination:string
   -> interface:string -> path:string -> member:string
   -> signature: Dbus_type.t list -> payload:Dbus_value.t list
   -> t
+
+(* Pretty printer *)
+val pr_msg : Format.formatter -> t -> unit

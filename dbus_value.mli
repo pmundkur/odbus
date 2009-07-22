@@ -59,3 +59,6 @@ val is_valid_object_path : string -> bool
 (* Type checker: raises Invalid_value_error Type_mismatch. *)
 val type_check : Dbus_type.t -> t -> unit
 val type_check_args : Dbus_type.t list -> t list -> unit
+
+(* Pretty printer *)
+val pr_value : Format.formatter -> t -> unit
