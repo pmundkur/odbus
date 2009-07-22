@@ -10,7 +10,6 @@ type error =
   | Authentication_pending
   | Authentication_failed
 
-
 exception Error of error
 let raise_error e =
   raise (Error e)
@@ -40,7 +39,8 @@ type t = {
 and callbacks = {
   authenticated_callback : t -> unit;
   msg_received_callback : t -> M.t -> unit;
-  error_callback : t -> unit;
+  shutdown_callback : t -> unit;
+  error_callback : t -> Eventloop.error -> unit;
   send_done_callback : t -> unit;
 }
 
@@ -70,6 +70,14 @@ let connect_callback aconn =
 let send_done_callback aconn =
   let conn = Conns.get_conn (C.get_handle aconn) in
     conn.callbacks.send_done_callback conn
+
+let error_callback aconn err =
+  let conn = Conns.get_conn (C.get_handle aconn) in
+    conn.callbacks.error_callback conn err
+
+let shutdown_callback aconn =
+  let conn = Conns.get_conn (C.get_handle aconn) in
+    conn.callbacks.shutdown_callback conn
 
 let recv_callback aconn s ofs len =
   let conn = Conns.get_conn (C.get_handle aconn) in
@@ -117,10 +125,6 @@ let recv_callback aconn s ofs len =
   in
     receiver s ofs len
 
-let disconnect conn =
-  (* TODO *)
-  conn.state <- Disconnected
-
 let send conn msg =
   match conn.state with
     | Connecting ->
@@ -131,11 +135,33 @@ let send conn msg =
         let stream_offset = cstate.write_offset in
         let marshaled_size = MM.compute_marshaled_size stream_offset msg in
         let buffer = String.make marshaled_size '\000' in
-        let marshaled_bytes = MM.marshal_message ~stream_offset T.Little_endian buffer ~offset:0 ~length:marshaled_size msg in
+        let marshaled_bytes = (MM.marshal_message ~stream_offset
+				 T.Little_endian buffer
+				 ~offset:0 ~length:marshaled_size
+				 msg) in
+	let write_offset = (stream_offset + marshaled_size) mod 8 in
           assert (marshaled_size = marshaled_bytes);
-          conn.state <- Connected { cstate with
-                                      write_offset = (stream_offset + marshaled_size) mod 8
-                                  };
+          conn.state <- Connected { cstate with write_offset = write_offset };
           C.send conn.conn buffer
     | Disconnected ->
         assert false
+
+let attach ev_loop fd callbacks =
+  let acallbacks = {
+    Async_conn.connect_callback   = connect_callback;
+    Async_conn.recv_callback      = recv_callback;
+    Async_conn.send_done_callback = send_done_callback;
+    Async_conn.shutdown_callback  = shutdown_callback;
+    Async_conn.error_callback     = error_callback;
+  } in
+  let aconn = Async_conn.attach ev_loop fd acallbacks in
+  {
+    conn      = aconn;
+    callbacks = callbacks;
+    state     = Connecting;
+    server_address = "";
+  }
+
+let detach conn =
+  Async_conn.detach conn.conn;
+  conn.state <- Disconnected
